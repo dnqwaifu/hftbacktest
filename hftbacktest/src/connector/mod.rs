@@ -8,6 +8,9 @@ pub mod binancefutures;
 #[cfg(feature = "bybit")]
 pub mod bybit;
 
+#[cfg(feature = "bullish")]
+pub mod bullish;
+
 pub mod util;
 
 /// Provides an interface for connecting with an exchange or broker for a live bot.

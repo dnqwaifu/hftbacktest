@@ -21,12 +21,13 @@ rust-version = "1.80.1"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["backtest", "live", "binancefutures", "bybit"]
+default = ["backtest", "live", "binancefutures", "bybit", "bullish"]
 backtest = ["zip", "uuid", "nom", "hftbacktest-derive"]
 live = ["chrono", "tokio", "futures-util"]
 use_reqwest = ["reqwest"]
 binancefutures = ["serde", "serde_json", "tokio-tungstenite", "use_reqwest", "sha2", "hmac", "rand"]
 bybit = ["serde", "serde_json", "tokio-tungstenite", "use_reqwest", "sha2", "hmac", "rand"]
+bullish = ["serde", "serde_json", "tokio-tungstenite", "use_reqwest", "sha2", "hmac", "rand"]
 unstable_fuse = []
 
 [dependencies]
