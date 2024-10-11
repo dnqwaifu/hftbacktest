@@ -7,17 +7,14 @@ use crate::{
     types::{Event, OrderId, BUY_EVENT, SELL_EVENT},
 };
 
-struct QtyTimestamp {
+pub struct QtyTimestamp {
     qty: f64,
-    timestamp: i64,
+    ts: i64,
 }
 
 impl Default for QtyTimestamp {
     fn default() -> Self {
-        Self {
-            qty: 0.0,
-            timestamp: 0,
-        }
+        Self { qty: 0.0, ts: 0 }
     }
 }
 
@@ -92,15 +89,9 @@ impl FusedHashMapMarketDepth {
             Entry::Vacant(entry) => entry.insert(order),
         };
         if order.side == Side::Buy {
-            self.bid_depth
-                .entry(order.price_tick)
-                .or_insert(Default::default())
-                .qty += order.qty;
+            self.bid_depth.entry(order.price_tick).or_default().qty += order.qty;
         } else {
-            self.ask_depth
-                .entry(order.price_tick)
-                .or_insert(Default::default())
-                .qty += order.qty;
+            self.ask_depth.entry(order.price_tick).or_default().qty += order.qty;
         }
         Ok(())
     }
@@ -121,12 +112,12 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             Entry::Occupied(mut entry) => {
                 let QtyTimestamp {
                     qty: prev_qty_,
-                    timestamp: prev_timestamp,
+                    ts: prev_timestamp,
                 } = *entry.get();
                 prev_qty = prev_qty_;
                 if timestamp > prev_timestamp {
                     if qty_lot > 0 {
-                        *entry.get_mut() = QtyTimestamp { qty, timestamp };
+                        *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
                     } else {
                         entry.remove();
                     }
@@ -135,7 +126,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             Entry::Vacant(entry) => {
                 prev_qty = 0f64;
                 if qty_lot > 0 {
-                    entry.insert(QtyTimestamp { qty, timestamp });
+                    entry.insert(QtyTimestamp { qty, ts: timestamp });
                 }
             }
         }
@@ -191,12 +182,12 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             Entry::Occupied(mut entry) => {
                 let QtyTimestamp {
                     qty: prev_qty_,
-                    timestamp: prev_timestamp,
+                    ts: prev_timestamp,
                 } = *entry.get();
                 prev_qty = prev_qty_;
                 if timestamp > prev_timestamp {
                     if qty_lot > 0 {
-                        *entry.get_mut() = QtyTimestamp { qty, timestamp };
+                        *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
                     } else {
                         entry.remove();
                     }
@@ -205,7 +196,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             Entry::Vacant(entry) => {
                 prev_qty = 0f64;
                 if qty_lot > 0 {
-                    entry.insert(QtyTimestamp { qty, timestamp });
+                    entry.insert(QtyTimestamp { qty, ts: timestamp });
                 }
             }
         }
@@ -351,23 +342,17 @@ impl ApplySnapshot for FusedHashMapMarketDepth {
         for row_num in 0..data.len() {
             let price = data[row_num].px;
             let qty = data[row_num].qty;
-            let timestamp = data[row_num].exch_ts;
+            let ts = data[row_num].exch_ts;
 
             let price_tick = (price / self.tick_size).round() as i64;
             if data[row_num].ev & BUY_EVENT == BUY_EVENT {
                 self.best_bid_tick = self.best_bid_tick.max(price_tick);
                 self.low_bid_tick = self.low_bid_tick.min(price_tick);
-                *self
-                    .bid_depth
-                    .entry(price_tick)
-                    .or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
+                *self.bid_depth.entry(price_tick).or_default() = QtyTimestamp { qty, ts };
             } else if data[row_num].ev & SELL_EVENT == SELL_EVENT {
                 self.best_ask_tick = self.best_ask_tick.min(price_tick);
                 self.high_ask_tick = self.high_ask_tick.max(price_tick);
-                *self
-                    .ask_depth
-                    .entry(price_tick)
-                    .or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
+                *self.ask_depth.entry(price_tick).or_default() = QtyTimestamp { qty, ts };
             }
         }
     }
@@ -384,7 +369,7 @@ impl ApplySnapshot for FusedHashMapMarketDepth {
         for (px_tick, qty) in bid_depth {
             events.push(Event {
                 ev: EXCH_EVENT | LOCAL_EVENT | BUY_EVENT | DEPTH_SNAPSHOT_EVENT,
-                exch_ts: qty.timestamp,
+                exch_ts: qty.ts,
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 local_ts: 0,
                 px: px_tick as f64 * self.tick_size,
@@ -404,7 +389,7 @@ impl ApplySnapshot for FusedHashMapMarketDepth {
         for (px_tick, qty) in ask_depth {
             events.push(Event {
                 ev: EXCH_EVENT | LOCAL_EVENT | SELL_EVENT | DEPTH_SNAPSHOT_EVENT,
-                exch_ts: qty.timestamp,
+                exch_ts: qty.ts,
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 local_ts: 0,
                 px: px_tick as f64 * self.tick_size,
@@ -433,16 +418,16 @@ impl L1MarketDepth for FusedHashMapMarketDepth {
             Entry::Occupied(mut entry) => {
                 let QtyTimestamp {
                     qty: prev_qty_,
-                    timestamp: prev_timestamp,
+                    ts: prev_timestamp,
                 } = *entry.get();
                 prev_qty = prev_qty_;
                 if timestamp > prev_timestamp {
-                    *entry.get_mut() = QtyTimestamp { qty, timestamp };
+                    *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
                 }
             }
             Entry::Vacant(entry) => {
                 prev_qty = 0f64;
-                entry.insert(QtyTimestamp { qty, timestamp });
+                entry.insert(QtyTimestamp { qty, ts: timestamp });
             }
         }
 
@@ -485,16 +470,16 @@ impl L1MarketDepth for FusedHashMapMarketDepth {
             Entry::Occupied(mut entry) => {
                 let QtyTimestamp {
                     qty: prev_qty_,
-                    timestamp: prev_timestamp,
+                    ts: prev_timestamp,
                 } = *entry.get();
                 prev_qty = prev_qty_;
                 if timestamp > prev_timestamp {
-                    *entry.get_mut() = QtyTimestamp { qty, timestamp };
+                    *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
                 }
             }
             Entry::Vacant(entry) => {
                 prev_qty = 0f64;
-                entry.insert(QtyTimestamp { qty, timestamp });
+                entry.insert(QtyTimestamp { qty, ts: timestamp });
             }
         }
 

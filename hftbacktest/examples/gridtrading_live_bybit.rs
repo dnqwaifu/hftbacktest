@@ -1,7 +1,12 @@
 use algo::gridtrading;
 use hftbacktest::{
-    connector::bybit::{Bybit, Endpoint},
-    live::{LiveBot, LoggingRecorder},
+    live::{
+        ipc::iceoryx::IceoryxUnifiedChannel,
+        Instrument,
+        LiveBot,
+        LiveBotBuilder,
+        LoggingRecorder,
+    },
     prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
 use tracing::error;
@@ -9,24 +14,17 @@ use tracing::error;
 mod algo;
 
 const ORDER_PREFIX: &str = "prefix";
-const API_KEY: &str = "apikey";
-const SECRET: &str = "secret";
 
-fn prepare_live() -> LiveBot<HashMapMarketDepth> {
-    // Currently only `linear` (linear futures) is supported.
-    let bybit_futures = Bybit::builder()
-        .endpoint(Endpoint::Testnet)
-        .api_key(API_KEY)
-        .secret(SECRET)
-        .order_prefix(ORDER_PREFIX)
-        .category("linear")
-        .build()
-        .unwrap();
-
-    let mut hbt = LiveBot::builder()
-        .register("bybit-futures", bybit_futures)
-        .add("bybit-futures", "BTCUSDT", 0.1, 0.001)
-        .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
+fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
+    let mut hbt = LiveBotBuilder::new()
+        .register(Instrument::new(
+            "bybit-futures",
+            "BTCUSDT",
+            0.1,
+            0.001,
+            HashMapMarketDepth::new(0.000001, 1.0),
+            0,
+        ))
         .error_handler(|error| {
             match error.kind {
                 ErrorKind::ConnectionInterrupted => {

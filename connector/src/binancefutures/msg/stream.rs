@@ -1,20 +1,25 @@
+use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::Deserialize;
 
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
-use crate::{
-    connector::util::from_str_to_f64,
-    types::{OrdType, Side, Status, TimeInForce},
-};
+use crate::utils::{from_str_to_f64, to_lowercase};
 
 #[derive(Deserialize, Debug)]
-pub struct Stream {
-    pub stream: String,
-    pub data: Data,
+#[serde(untagged)]
+pub enum Stream {
+    EventStream(EventStream),
+    Result(Result),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Result {
+    pub result: Option<String>,
+    pub id: String,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "e")]
-pub enum Data {
+pub enum EventStream {
     #[serde(rename = "depthUpdate")]
     DepthUpdate(Depth),
     #[serde(rename = "trade")]
@@ -34,6 +39,7 @@ pub struct Depth {
     #[serde(rename = "E")]
     pub event_time: i64,
     #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     // for Coin-M futures
     // #[serde(rename = "ps")]
@@ -57,6 +63,7 @@ pub struct Trade {
     #[serde(rename = "E")]
     pub event_time: i64,
     #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     #[serde(rename = "t")]
     pub id: i64,
@@ -108,6 +115,7 @@ pub struct Balance {
 #[derive(Deserialize, Debug)]
 pub struct Position {
     #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     #[serde(rename = "pa")]
     #[serde(deserialize_with = "from_str_to_f64")]
@@ -144,6 +152,7 @@ pub struct OrderTradeUpdate {
 #[derive(Deserialize, Debug)]
 pub struct Order {
     #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     #[serde(rename = "c")]
     pub client_order_id: String,
