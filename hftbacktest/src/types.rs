@@ -87,18 +87,6 @@ impl From<anyhow::Error> for Value {
     }
 }
 
-#[cfg(feature = "use_reqwest")]
-impl From<reqwest::Error> for Value {
-    fn from(value: reqwest::Error) -> Self {
-        let mut map = HashMap::new();
-        if let Some(code) = value.status() {
-            map.insert("status_code".to_string(), Value::String(code.to_string()));
-        }
-        map.insert("msg".to_string(), Value::String(value.to_string()));
-        Value::Map(map)
-    }
-}
-
 /// Error conveyed through [`LiveEvent`].
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct LiveError {
@@ -140,9 +128,19 @@ pub enum ErrorKind {
 pub enum LiveEvent {
     BatchStart,
     BatchEnd,
-    Feed { symbol: String, event: Event },
-    Order { symbol: String, order: Order },
-    Position { symbol: String, qty: f64 },
+    Feed {
+        symbol: String,
+        event: Event,
+    },
+    Order {
+        symbol: String,
+        order: Order,
+    },
+    Position {
+        symbol: String,
+        qty: f64,
+        exch_ts: i64,
+    },
     Error(LiveError),
 }
 

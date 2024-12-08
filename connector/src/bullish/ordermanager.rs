@@ -212,7 +212,7 @@ impl OrderManager {
 }
 
 impl GetOrders for OrderManager {
-    fn get_orders(&self, symbol: Option<String>) -> Vec<Order> {
+    fn orders(&self, symbol: Option<String>) -> Vec<Order> {
         self.orders
             .iter()
             .filter(|(_, order)| {

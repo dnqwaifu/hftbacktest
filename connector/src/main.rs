@@ -24,7 +24,7 @@ use tokio::{
     runtime::Builder,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::{
     binancefutures::BinanceFutures,
@@ -38,12 +38,16 @@ use crate::{
 pub mod binancefutures;
 #[cfg(feature = "bybit")]
 pub mod bybit;
-#[cfg(feature = "bullish")]
-pub mod bullish;
 
 mod connector;
 mod fuse;
 mod utils;
+pub mod bullish;
+
+struct Position {
+    qty: f64,
+    exch_ts: i64,
+}
 
 fn run_receive_task(
     name: &str,
@@ -59,20 +63,17 @@ fn run_receive_task(
         match node.wait(cycle_time) {
             NodeEvent::Tick => {
                 while let Some((id, ev)) = bot_rx.receive()? {
-                    debug!(?ev, "Got a message from bot");
                     match ev {
                         LiveRequest::Order {
                             symbol: asset,
                             order,
                         } => match order.req {
                             Status::New => {
-                                debug!(?order, "Submitting order");
                                 // Requests to the Connector submit the new order.
                                 connector.submit(asset, order, tx.clone());
                             }
                             Status::Canceled => {
                                 // Requests to the Connector cancel the order.
-                                debug!(?order, "Submitting cancel");
                                 connector.cancel(asset, order, tx.clone());
                             }
                             status => {
@@ -85,7 +86,6 @@ fn run_receive_task(
                             lot_size: _,
                         } => {
                             // Makes prepare the publisher thread to also add the instrument.
-                            debug!(?symbol, "New instrument registration");
                             tx.send(PublishEvent::RegisterInstrument {
                                 id,
                                 symbol: symbol.clone(),
@@ -113,11 +113,10 @@ async fn run_publish_task(
     mut rx: UnboundedReceiver<PublishEvent>,
 ) -> Result<(), ChannelError> {
     let mut depth = HashMap::new();
-    let mut position = HashMap::new();
+    let mut position: HashMap<String, Position> = HashMap::new();
     let bot_tx = IceoryxBuilder::new(name).bot(false).sender()?;
 
     while let Some(msg) = rx.recv().await {
-        debug!("sending data");
         match msg {
             PublishEvent::RegisterInstrument {
                 id,
@@ -128,12 +127,7 @@ async fn run_publish_task(
                 // requested to add this instrument in batch mode.
                 bot_tx.send(id, &LiveEvent::BatchStart)?;
 
-                debug!("sending order data");
-                for order in order_manager
-                    .lock()
-                    .unwrap()
-                    .get_orders(Some(symbol.clone()))
-                {
+                for order in order_manager.lock().unwrap().orders(Some(symbol.clone())) {
                     bot_tx.send(
                         id,
                         &LiveEvent::Order {
@@ -143,12 +137,13 @@ async fn run_publish_task(
                     )?;
                 }
 
-                if let Some(qty) = position.get(&symbol) {
+                if let Some(position) = position.get(&symbol) {
                     bot_tx.send(
                         id,
                         &LiveEvent::Position {
                             symbol: symbol.clone(),
-                            qty: *qty,
+                            qty: position.qty,
+                            exch_ts: position.exch_ts,
                         },
                     )?;
                 }
@@ -202,32 +197,74 @@ async fn run_publish_task(
 fn handle_ev(
     ev: &LiveEvent,
     depth: &mut HashMap<String, FusedHashMapMarketDepth>,
-    position: &mut HashMap<String, f64>,
+    position: &mut HashMap<String, Position>,
 ) -> bool {
     match ev {
         LiveEvent::Feed { symbol, event } => {
             if event.is(BUY_EVENT | DEPTH_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_bid_depth(event.px, event.qty, event.exch_ts);
             } else if event.is(SELL_EVENT | DEPTH_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_ask_depth(event.px, event.qty, event.exch_ts);
             } else if event.is(BUY_EVENT | DEPTH_BBO_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_best_bid(event.px, event.qty, event.exch_ts);
             } else if event.is(SELL_EVENT | DEPTH_BBO_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_best_ask(event.px, event.qty, event.exch_ts);
             } else if event.is(DEPTH_CLEAR_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 depth_.clear_depth(Side::None, 0.0);
             }
         }
-        LiveEvent::Position { symbol, qty } => {
+        LiveEvent::Position {
+            symbol,
+            qty,
+            exch_ts,
+        } => {
             if position.contains_key(symbol) {
-                *position.get_mut(symbol).unwrap() = *qty;
+                let position = position.get_mut(symbol).unwrap();
+                return if *exch_ts >= position.exch_ts {
+                    position.qty = *qty;
+                    true
+                } else {
+                    false
+                };
             } else {
-                position.insert(symbol.clone(), *qty);
+                position.insert(
+                    symbol.clone(),
+                    Position {
+                        qty: *qty,
+                        exch_ts: *exch_ts,
+                    },
+                );
+                return true;
             }
         }
         _ => {}
@@ -304,6 +341,7 @@ async fn main() {
             connector.run(pub_tx.clone());
             Box::new(connector)
         }
+ 
         connector => {
             error!(%connector, "This connector doesn't exist.");
             exit(1);

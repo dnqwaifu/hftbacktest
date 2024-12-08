@@ -19,7 +19,8 @@ use crate::{
         ordermanager::{OrderManager, SharedOrderManager},
         rest::BullishClient,
     },
-    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent}, utils::{ExponentialBackoff, Retry},
+    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent}, 
+    utils::{ExponentialBackoff, Retry},
 };
 
 use hftbacktest::{
@@ -43,9 +44,9 @@ pub enum BullishError {
     ConnectionInterrupted,
     #[error("ConnectionAbort: {0}")]
     ConnectionAbort(String),
-    #[error("ReqError: {0:?}")]
-    FeedError(#[from] serde_json::Error),
     #[error("Feed Error")]
+    FeedError(#[from] serde_json::Error),
+    #[error("ReqError: {0:?}")]
     ReqError(#[from] reqwest::Error),
     #[error("error({1}) at order_id({0})")]
     OrderError(i64, String),
@@ -65,7 +66,14 @@ impl From<BullishError> for Value {
         match value {
             BullishError::AssetNotFound => Value::String(value.to_string()),
             BullishError::InvalidRequest => Value::String(value.to_string()),
-            BullishError::ReqError(err) => err.into(),
+            BullishError::ReqError(error) => {
+                let mut map = HashMap::new();
+                if let Some(code) = error.status() {
+                    map.insert("status_code".to_string(), Value::String(code.to_string()));
+                }
+                map.insert("msg".to_string(), Value::String(error.to_string()));
+                Value::Map(map)
+            }
             BullishError::OrderError(code, msg) => Value::Map({
                 let mut map = HashMap::new();
                 map.insert("code".to_string(), Value::Int(code));

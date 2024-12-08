@@ -59,7 +59,14 @@ impl From<BinanceFuturesError> for Value {
         match value {
             BinanceFuturesError::InstrumentNotFound => Value::String(value.to_string()),
             BinanceFuturesError::InvalidRequest => Value::String(value.to_string()),
-            BinanceFuturesError::ReqError(error) => error.into(),
+            BinanceFuturesError::ReqError(error) => {
+                let mut map = HashMap::new();
+                if let Some(code) = error.status() {
+                    map.insert("status_code".to_string(), Value::String(code.to_string()));
+                }
+                map.insert("msg".to_string(), Value::String(error.to_string()));
+                Value::Map(map)
+            }
             BinanceFuturesError::OrderError { code, msg } => Value::Map({
                 let mut map = HashMap::new();
                 map.insert("code".to_string(), Value::Int(code));
@@ -139,6 +146,7 @@ impl BinanceFutures {
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let instruments = self.symbols.clone();
+        let symbol_tx = self.symbol_tx.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -161,14 +169,8 @@ impl BinanceFutures {
                         ev_tx.clone(),
                         order_manager.clone(),
                         instruments.clone(),
+                        symbol_tx.subscribe(),
                     );
-
-                    // Cancel all orders before connecting to the stream in order to start with the
-                    // clean state.
-                    stream.cancel_all().await?;
-
-                    // Fetches the initial states such as positions and open orders.
-                    stream.get_position_information().await?;
 
                     let listen_key = stream.get_listen_key().await?;
 
@@ -203,6 +205,9 @@ impl ConnectorBuilder for BinanceFutures {
 impl Connector for BinanceFutures {
     fn register(&mut self, symbol: String) {
         // Binance futures symbols must be lowercase to subscribe to the WebSocket stream.
+        if symbol.to_lowercase() != symbol {
+            error!("Binance Futures symbol must be lowercase.");
+        }
         let symbol = symbol.to_lowercase();
         let mut symbols = self.symbols.lock().unwrap();
         if !symbols.contains(&symbol) {
