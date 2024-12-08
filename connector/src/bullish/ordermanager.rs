@@ -1,30 +1,21 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
-    num::{ParseFloatError, ParseIntError},
+    collections::HashMap,
     sync::{Arc, Mutex},
-    time::SystemTime,
 };
 
-use chrono::Utc;
-use rand::Rng;
-use thiserror::Error;
 
-use hftbacktest::{
-    prelude::{get_precision, OrdType, Side, TimeInForce},
-    types::{Order, Status, Value, OrderId},
-};
+use hftbacktest::types::{Order, Status, OrderId};
 
 use crate::{
     connector::GetOrders,
-    utils::{generate_rand_digits, RefSymbolOrderId, SymbolOrderId},
+    utils::{generate_rand_digits, SymbolOrderId},
 };
 
 use super::{
     msg::{
-        rest::{BullishCommand, BullishCommandV3, CommandResponse},
-        ws::{PrivateErrorResponse, PrivateTrade, PrivateOrder},
-    },
-    Bullish, BullishError,
+        rest::CommandResponse,
+        ws::PrivateOrder,
+    }, BullishError,
 };
 
 #[derive(Debug)]

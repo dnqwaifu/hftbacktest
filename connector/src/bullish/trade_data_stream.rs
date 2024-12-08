@@ -26,7 +26,6 @@ use crate::{
         BullishError,
     },
     connector::PublishEvent,
-    utils::{generate_rand_string, parse_depth, parse_px_qty_tup},
 };
 
 pub struct TradeDataStream {
@@ -72,7 +71,7 @@ impl TradeDataStream {
         let request = url.into_client_request()?;
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
+        let interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
 
         debug!("Connected to public trades stream...");
 

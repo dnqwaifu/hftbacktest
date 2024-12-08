@@ -20,12 +20,12 @@ use crate::{
     bullish::{
         msg::{
             rest,
-            ws::{self, BullishWebSocketResponse, OrderBookL1, OrderBookL2, OrderbookStreamMsg, Subscription},
+            ws::{self, BullishWebSocketResponse, OrderBookL1, OrderBookL2, OrderbookStreamMsg},
         },
         rest::BullishClient,
         BullishError,
     },
-    utils::{generate_rand_string, parse_depth, parse_px_qty_tup},
+    utils::parse_depth,
     connector::PublishEvent,
 };
 

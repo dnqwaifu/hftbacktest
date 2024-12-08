@@ -1,14 +1,13 @@
 use serde::{
-    de::{Error, Unexpected, Visitor},
-    Deserialize, Deserializer, Serialize,
+    Deserialize, Serialize,
 };
 
 use super::{
-    from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type, BullishOrder,
+    from_str_to_side, BullishOrder,
 };
 
-use hftbacktest::types::{OrdType, Side, Status, TimeInForce, Value};
-use crate::utils::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64};
+use hftbacktest::types::{Side, Value};
+use crate::utils::{from_str_to_f64, from_str_to_i64};
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]

@@ -5,12 +5,10 @@ use std::{
     sync::{
         Arc, Mutex,
     },
-    time::Duration,
 };
 
 use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
 use thiserror::Error;
-use tokio::runtime::Runtime;
 use tracing::{warn,error};
 // use ws::{connect_orderbook, connect_private, connect_trades};
 
@@ -24,7 +22,7 @@ use crate::{
 };
 
 use hftbacktest::{
-    backtest::order, prelude::get_precision, types::{ErrorKind, LiveError, LiveEvent, Order, Status, Value}
+    prelude::get_precision, types::{ErrorKind, LiveError, LiveEvent, Order, Status, Value}
 };
 
 mod msg;

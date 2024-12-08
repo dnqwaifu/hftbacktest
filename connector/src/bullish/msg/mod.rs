@@ -1,17 +1,13 @@
 use serde::{
     de::{Error, Unexpected, Visitor},
-    Deserialize, Deserializer, Serialize,
+    Deserialize, Deserializer,
 };
 
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 
 use crate::utils::{from_str_to_f64};
 
-use std::{
-    collections::HashMap,
-    fmt::{self, Debug},
-    num::{NonZeroI32, NonZeroU32},
-};
+use std::fmt::{self, Debug};
 
 pub mod rest;
 pub mod ws;

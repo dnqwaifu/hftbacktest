@@ -1,25 +1,19 @@
-use std::{sync::Arc, time::SystemTime};
+use std::time::SystemTime;
 
-use chrono::Utc;
-use reqwest::Response;
 use serde::Deserialize;
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use std::{fmt::Write, num::ParseIntError};
 
 use crate::{
     bullish::{
-        msg::{
-            rest::{
+        msg::rest::{
                 AssetAccountResponse, AssetAccountResponseResult, BullishCommandV3,
                 CommandResponse, CommandResponseResult, ErrorResponse, HmacResponse,
-                HmacResponseResult, L2OrderBookResponseResult, L2OrderbookResponse,
+                HmacResponseResult,
                 NonceResponse, NonceResponseResult, PerpetualPositionResponse,
                 PerpetualPositionResponseResult, TradingAccount, TradingAccountResponseResult,
             },
-            BullishOrder,
-        },
         BullishError,
     },
     utils::sign_hmac_sha256,
@@ -234,7 +228,7 @@ impl BullishClient {
     }
 
     pub async fn submit_order(
-        mut self,
+        self,
         //trading_account_id: &str,
         client_order_id: &str,
         symbol: &str,
