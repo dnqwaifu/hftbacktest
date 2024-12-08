@@ -24,11 +24,12 @@ use tokio::{
     runtime::Builder,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     binancefutures::BinanceFutures,
     bybit::Bybit,
+    bullish::Bullish,
     connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
     fuse::FusedHashMapMarketDepth,
 };
@@ -37,6 +38,8 @@ use crate::{
 pub mod binancefutures;
 #[cfg(feature = "bybit")]
 pub mod bybit;
+#[cfg(feature = "bullish")]
+pub mod bullish;
 
 mod connector;
 mod fuse;
@@ -56,17 +59,20 @@ fn run_receive_task(
         match node.wait(cycle_time) {
             NodeEvent::Tick => {
                 while let Some((id, ev)) = bot_rx.receive()? {
+                    debug!(?ev, "Got a message from bot");
                     match ev {
                         LiveRequest::Order {
                             symbol: asset,
                             order,
                         } => match order.req {
                             Status::New => {
+                                debug!(?order, "Submitting order");
                                 // Requests to the Connector submit the new order.
                                 connector.submit(asset, order, tx.clone());
                             }
                             Status::Canceled => {
                                 // Requests to the Connector cancel the order.
+                                debug!(?order, "Submitting cancel");
                                 connector.cancel(asset, order, tx.clone());
                             }
                             status => {
@@ -79,6 +85,7 @@ fn run_receive_task(
                             lot_size: _,
                         } => {
                             // Makes prepare the publisher thread to also add the instrument.
+                            debug!(?symbol, "New instrument registration");
                             tx.send(PublishEvent::RegisterInstrument {
                                 id,
                                 symbol: symbol.clone(),
@@ -110,6 +117,7 @@ async fn run_publish_task(
     let bot_tx = IceoryxBuilder::new(name).bot(false).sender()?;
 
     while let Some(msg) = rx.recv().await {
+        debug!("sending data");
         match msg {
             PublishEvent::RegisterInstrument {
                 id,
@@ -120,6 +128,7 @@ async fn run_publish_task(
                 // requested to add this instrument in batch mode.
                 bot_tx.send(id, &LiveEvent::BatchStart)?;
 
+                debug!("sending order data");
                 for order in order_manager
                     .lock()
                     .unwrap()
@@ -235,6 +244,7 @@ struct Args {
     /// Connector
     /// * binancefutures: Binance USD-m Futures
     /// * bybit: Bybit Linear Futures
+    /// * bullish: Bullish.com
     connector: String,
 
     /// Connector's configuration file path.
@@ -280,6 +290,15 @@ async fn main() {
             let mut connector = Bybit::build_from(&config)
                 .map_err(|error| {
                     error!(?error, "Couldn't build the Bybit connector.");
+                })
+                .unwrap();
+            connector.run(pub_tx.clone());
+            Box::new(connector)
+        }
+        "bullish" => {
+            let mut connector = Bullish::build_from(&config)
+                .map_err(|error| {
+                    error!(?error, "Couldn't build the Bullish connector.");
                 })
                 .unwrap();
             connector.run(pub_tx.clone());

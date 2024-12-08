@@ -302,6 +302,11 @@ pub fn generate_rand_string(length: usize) -> String {
         .collect()
 }
 
+pub fn generate_rand_digits(length: usize) -> String {
+    let mut rng = rand::thread_rng();
+    (0..length).map(|_| rng.gen_range(0..10).to_string()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use hashbrown::HashMap;
