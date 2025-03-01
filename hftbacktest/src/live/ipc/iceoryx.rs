@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     marker::PhantomData,
     rc::Rc,
     string::FromUtf8Error,
@@ -7,28 +7,28 @@ use std::{
 };
 
 use bincode::{
-    config,
-    error::{DecodeError, EncodeError},
     Decode,
     Encode,
+    config,
+    error::{DecodeError, EncodeError},
 };
 use iceoryx2::{
     port::{
         publisher::{Publisher, PublisherLoanError, PublisherSendError},
         subscriber::{Subscriber, SubscriberReceiveError},
     },
-    prelude::{ipc, Node, NodeBuilder, NodeEvent, ServiceName},
+    prelude::{Node, NodeBuilder, ServiceName, ipc},
 };
 use thiserror::Error;
 
 use crate::{
     live::{
-        ipc::{
-            config::{ChannelConfig, MAX_PAYLOAD_SIZE},
-            Channel,
-        },
         BotError,
         Instrument,
+        ipc::{
+            Channel,
+            config::{ChannelConfig, MAX_PAYLOAD_SIZE},
+        },
     },
     prelude::{LiveEvent, LiveRequest},
     types::BuildError,
@@ -149,7 +149,7 @@ impl IceoryxBuilder {
 
         let publisher = pub_factory
             .publisher_builder()
-            .max_slice_len(MAX_PAYLOAD_SIZE)
+            .initial_max_slice_len(MAX_PAYLOAD_SIZE)
             .create()
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
 
@@ -336,7 +336,7 @@ impl Channel for IceoryxUnifiedChannel {
 
             // todo: this needs to retrieve Iox2Event without waiting.
             match self.node.wait(Duration::from_nanos(1)) {
-                NodeEvent::Tick => {
+                Ok(()) => {
                     let ch = unsafe { self.unique_channel.get_unchecked(self.ch_i) };
 
                     self.ch_i += 1;
@@ -367,7 +367,7 @@ impl Channel for IceoryxUnifiedChannel {
                         }
                     }
                 }
-                NodeEvent::TerminationRequest | NodeEvent::InterruptSignal => {
+                Err(_error) => {
                     return Err(BotError::Interrupted);
                 }
             }

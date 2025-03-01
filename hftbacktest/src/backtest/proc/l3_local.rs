@@ -1,28 +1,17 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    mem,
-};
+use std::collections::{HashMap, hash_map::Entry};
 
 use crate::{
     backtest::{
+        BacktestError,
         assettype::AssetType,
-        data::{Data, Reader},
         models::{FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
         state::State,
-        BacktestError,
     },
     depth::L3MarketDepth,
     types::{
         Event,
-        OrdType,
-        Order,
-        OrderId,
-        Side,
-        StateValues,
-        Status,
-        TimeInForce,
         LOCAL_ASK_ADD_ORDER_EVENT,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
         LOCAL_BID_ADD_ORDER_EVENT,
@@ -32,6 +21,13 @@ use crate::{
         LOCAL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
         LOCAL_TRADE_EVENT,
+        OrdType,
+        Order,
+        OrderId,
+        Side,
+        StateValues,
+        Status,
+        TimeInForce,
     },
 };
 
@@ -43,9 +39,6 @@ where
     MD: L3MarketDepth,
     FM: FeeModel,
 {
-    reader: Reader<Event>,
-    data: Data<Event>,
-    row_num: usize,
     orders: HashMap<OrderId, Order>,
     orders_to: OrderBus,
     orders_from: OrderBus,
@@ -66,7 +59,6 @@ where
 {
     /// Constructs an instance of `L3Local`.
     pub fn new(
-        reader: Reader<Event>,
         depth: MD,
         state: State<AT, FM>,
         order_latency: LM,
@@ -75,9 +67,6 @@ where
         orders_from: OrderBus,
     ) -> Self {
         Self {
-            reader,
-            data: Data::empty(),
-            row_num: 0,
             orders: Default::default(),
             orders_to,
             orders_from,
@@ -173,6 +162,51 @@ where
         Ok(())
     }
 
+    fn modify(
+        &mut self,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        current_timestamp: i64,
+    ) -> Result<(), BacktestError> {
+        let order = self
+            .orders
+            .get_mut(&order_id)
+            .ok_or(BacktestError::OrderNotFound)?;
+
+        if order.req != Status::None {
+            return Err(BacktestError::OrderRequestInProcess);
+        }
+
+        let orig_price_tick = order.price_tick;
+        let orig_qty = order.qty;
+
+        let price_tick = (price / self.depth.tick_size()).round() as i64;
+        order.price_tick = price_tick;
+        order.qty = qty;
+
+        order.req = Status::Replaced;
+        order.local_timestamp = current_timestamp;
+
+        let order_entry_latency = self.order_latency.entry(current_timestamp, order);
+        // Negative latency indicates that the order is rejected for technical reasons, and its
+        // value represents the latency that the local experiences when receiving the rejection
+        // notification.
+        if order_entry_latency < 0 {
+            // Rejects the order.
+            let mut order_ = order.clone();
+            order_.req = Status::Rejected;
+            order_.price_tick = orig_price_tick;
+            order_.qty = orig_qty;
+            let rej_recv_timestamp = current_timestamp - order_entry_latency;
+            self.orders_from.append(order_, rej_recv_timestamp);
+        } else {
+            let exch_recv_timestamp = current_timestamp + order_entry_latency;
+            self.orders_to.append(order.clone(), exch_recv_timestamp);
+        }
+        Ok(())
+    }
+
     fn cancel(&mut self, order_id: OrderId, current_timestamp: i64) -> Result<(), BacktestError> {
         let order = self
             .orders
@@ -250,20 +284,11 @@ where
     FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
-    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next_data()?;
-        for rn in 0..self.data.len() {
-            if self.data[rn].is(LOCAL_EVENT) {
-                self.row_num = rn;
-                let tmp = self.data[rn].local_ts;
-                return Ok(tmp);
-            }
-        }
-        Err(BacktestError::EndOfData)
+    fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {
+        event.is(LOCAL_EVENT).then_some(event.local_ts)
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
-        let ev = &self.data[self.row_num];
+    fn process(&mut self, ev: &Event) -> Result<(), BacktestError> {
         // Processes a depth event
         if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::Buy);
@@ -291,26 +316,7 @@ where
         // Stores the current feed latency
         self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
 
-        // Checks
-        let mut next_ts = 0;
-        for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].is(LOCAL_EVENT) {
-                self.row_num = rn;
-                next_ts = self.data[rn].local_ts;
-                break;
-            }
-        }
-
-        if next_ts <= 0 {
-            let next_data = self.reader.next_data()?;
-            let next_row = &next_data[0];
-            next_ts = next_row.local_ts;
-            let data = mem::replace(&mut self.data, next_data);
-            self.reader.release(data);
-            self.row_num = 0;
-        }
-
-        Ok((next_ts, i64::MAX))
+        Ok(())
     }
 
     fn process_recv_order(

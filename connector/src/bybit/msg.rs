@@ -2,18 +2,18 @@ use std::{collections::HashMap, fmt, fmt::Debug};
 
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
-    de,
-    de::{Error, Unexpected, Visitor},
     Deserialize,
     Deserializer,
     Serialize,
+    de,
+    de::{Error, Unexpected, Visitor},
 };
 
 use crate::utils::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64};
 
 struct SideVisitor;
 
-impl<'de> Visitor<'de> for SideVisitor {
+impl Visitor<'_> for SideVisitor {
     type Value = Side;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -41,7 +41,7 @@ where
 
 struct OrdTypeVisitor;
 
-impl<'de> Visitor<'de> for OrdTypeVisitor {
+impl Visitor<'_> for OrdTypeVisitor {
     type Value = OrdType;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -72,7 +72,7 @@ where
 
 struct TimeInForceVisitor;
 
-impl<'de> Visitor<'de> for TimeInForceVisitor {
+impl Visitor<'_> for TimeInForceVisitor {
     type Value = TimeInForce;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -102,7 +102,7 @@ where
 
 struct StatusVisitor;
 
-impl<'de> Visitor<'de> for StatusVisitor {
+impl Visitor<'_> for StatusVisitor {
     type Value = Status;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

@@ -1,23 +1,23 @@
 use std::{
     any::Any,
-    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     marker::PhantomData,
 };
 
 use crate::{
     backtest::BacktestError,
-    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{INVALID_MAX, INVALID_MIN, MarketDepth},
     types::{
         AnyClone,
+        BUY_EVENT,
         Event,
         OrdType,
         Order,
         OrderId,
+        SELL_EVENT,
         Side,
         Status,
         TimeInForce,
-        BUY_EVENT,
-        SELL_EVENT,
     },
 };
 
@@ -422,7 +422,7 @@ pub trait L3QueueModel<MD> {
     fn modify_backtest_order(
         &mut self,
         order_id: OrderId,
-        order: Order,
+        order: &mut Order,
         depth: &MD,
     ) -> Result<(), BacktestError>;
 
@@ -771,7 +771,7 @@ where
     fn modify_backtest_order(
         &mut self,
         order_id: OrderId,
-        mut order: Order,
+        order: &mut Order,
         _depth: &MD,
     ) -> Result<(), BacktestError> {
         order.q = Box::new(L3OrderSource::Backtest);
@@ -793,7 +793,7 @@ where
                         {
                             let mut prev_order = queue.remove(i).unwrap();
                             let prev_order_price_tick = prev_order.price_tick;
-                            prev_order.update(&order);
+                            prev_order.update(order);
                             // if queue.len() == 0 {
                             //     self.bid_queue.remove(&order_price_tick);
                             // }
@@ -829,7 +829,7 @@ where
                         {
                             let mut prev_order = queue.remove(i).unwrap();
                             let prev_order_price_tick = prev_order.price_tick;
-                            prev_order.update(&order);
+                            prev_order.update(order);
                             // if queue.len() == 0 {
                             //     self.bid_queue.remove(&order_price_tick);
                             // }
@@ -1120,7 +1120,7 @@ where
 #[cfg(test)]
 mod l3_tests {
     use crate::{
-        backtest::{models::L3FIFOQueueModel, L3QueueModel},
+        backtest::{L3QueueModel, models::L3FIFOQueueModel},
         prelude::{
             Event,
             HashMapMarketDepth,

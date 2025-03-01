@@ -1,32 +1,32 @@
 use std::time::Duration;
 
 use chrono::Utc;
-use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use hftbacktest::prelude::LiveEvent;
 use tokio::{
     net::TcpStream,
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
-    connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
     MaybeTlsStream,
     WebSocketStream,
+    connect_async,
+    tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{debug, error};
 
 use crate::{
     bybit::{
+        BybitError,
+        SharedSymbolSet,
         msg::{Op, PrivateStreamMsg, PrivateStreamTopicMsg},
         ordermanager::{OrderExt, SharedOrderManager},
         rest::BybitClient,
-        BybitError,
-        SharedSymbolSet,
     },
     connector::PublishEvent,
     utils::sign_hmac_sha256,
@@ -90,7 +90,7 @@ impl PrivateStream {
                             ],
                         };
                         let s = serde_json::to_string(&op).unwrap();
-                        write.send(Message::Text(s)).await?;
+                        write.send(Message::Text(s.into())).await?;
                     } else {
                         return Err(BybitError::AuthError {
                             msg: resp.ret_msg.unwrap(),
@@ -258,7 +258,7 @@ impl PrivateStream {
             args: vec![self.api_key.clone(), expires.to_string(), signature],
         };
         let s = serde_json::to_string(&op).unwrap();
-        write.send(Message::Text(s)).await?;
+        write.send(Message::Text(s.into())).await?;
 
         loop {
             select! {
@@ -269,7 +269,7 @@ impl PrivateStream {
                         args: vec![]
                     };
                     let s = serde_json::to_string(&op).unwrap();
-                    write.send(Message::Text(s)).await?;
+                    write.send(Message::Text(s.into())).await?;
                 }
                 msg = self.symbol_rx.recv() => {
                     match msg {
@@ -337,7 +337,7 @@ impl PrivateStream {
                             }
                         }
                         Some(Ok(Message::Ping(_))) => {
-                            write.send(Message::Pong(Vec::new())).await?;
+                            write.send(Message::Pong(Bytes::default())).await?;
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(

@@ -6,22 +6,22 @@ use hftbacktest::types::{ErrorKind, LiveError, LiveEvent};
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{error, info};
 
 use crate::{
     bybit::{
+        BybitError,
         msg::{Op, Order, TradeOp, TradeStreamMsg},
         ordermanager::{OrderExt, SharedOrderManager},
-        BybitError,
     },
     connector::PublishEvent,
     utils::{generate_rand_string, sign_hmac_sha256},
@@ -76,7 +76,7 @@ impl TradeStream {
             args: vec![self.api_key.clone(), expires.to_string(), signature],
         };
         let s = serde_json::to_string(&op).unwrap();
-        write.send(Message::Text(s)).await?;
+        write.send(Message::Text(s.into())).await?;
 
         loop {
             select! {
@@ -87,7 +87,7 @@ impl TradeStream {
                         args: vec![]
                     };
                     let s = serde_json::to_string(&op).unwrap();
-                    write.send(Message::Text(s)).await?;
+                    write.send(Message::Text(s.into())).await?;
                 }
                 order = self.order_rx.recv() => {
                     match order {
@@ -117,7 +117,7 @@ impl TradeStream {
                                 args: vec![order.bybit_order]
                             };
                             let s = serde_json::to_string(&op).unwrap();
-                            write.send(Message::Text(s)).await?;
+                            write.send(Message::Text(s.into())).await?;
                         }
                         Err(RecvError::Closed) => {
                             return Ok(());
@@ -135,7 +135,7 @@ impl TradeStream {
                             };
                         }
                         Some(Ok(Message::Ping(_))) => {
-                            write.send(Message::Pong(Vec::new())).await?;
+                            write.send(Message::Pong(Bytes::default())).await?;
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(

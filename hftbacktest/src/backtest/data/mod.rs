@@ -10,7 +10,7 @@ use std::{
     slice::SliceIndex,
 };
 
-pub use npy::{read_npy_file, read_npz_file, write_npy, Field, NpyDTyped, NpyHeader};
+pub use npy::{Field, NpyDTyped, NpyHeader, read_npy_file, read_npz_file, write_npy};
 pub use reader::{Cache, DataPreprocess, DataSource, FeedLatencyAdjustment, Reader, ReaderBuilder};
 
 use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
@@ -56,6 +56,20 @@ where
             ptr: Default::default(),
             offset: 0,
             _d_marker: PhantomData,
+        }
+    }
+
+    pub fn from_data(data: &[D]) -> Self {
+        let byte_len = size_of_val(data);
+        let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
+
+        let dest_data_ptr = DataPtr::new(byte_len);
+
+        unsafe {
+            let dest_data = dest_data_ptr.ptr.as_mut().unwrap();
+
+            dest_data.copy_from_slice(bytes);
+            Self::from_data_ptr(dest_data_ptr, 0)
         }
     }
 

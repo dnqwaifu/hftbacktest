@@ -5,24 +5,24 @@ use hftbacktest::prelude::*;
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{Message, client::IntoClientRequest},
 };
 use tracing::{debug, error};
 
 use crate::{
     binancefutures::{
+        BinanceFuturesError,
+        SharedSymbolSet,
         msg::stream::{EventStream, Stream},
         ordermanager::SharedOrderManager,
         rest::BinanceFuturesClient,
-        BinanceFuturesError,
-        SharedSymbolSet,
     },
     connector::PublishEvent,
 };
@@ -97,6 +97,13 @@ impl UserDataStream {
                         );
                     }
                 }
+            }
+            EventStream::TradeLite(_data) => {
+                // Since this message does not include the order status, additional logic is
+                // required to fully utilize it. To reduce latency— which first needs to be
+                // measured—a new logic must be implemented to reconstruct the order status and open
+                // position by using the last filled quantity and reconciling it with data from the
+                // ORDER_TRADE_UPDATE message.
             }
         }
         Ok(())

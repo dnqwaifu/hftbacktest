@@ -19,10 +19,11 @@
 * [X] Add fee model: fee per trading value (current), fee per trading quantity, fee per trade, and different fees based on the direction. (@roykim98)
 * [X] Parallel loading: Load the next data set while backtesting is in progress.
 * [ ] Add a modify order feature.
+* [ ] Allow different latencies for placing, modifying, and canceling orders, as well as order responses, fills, and position feeds.
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
-* [X] Support external connectors through IPC for multiple bots via a unified connection. (WIP: ``branch: ipc (PR-129)``)
+* [X] Support external connectors through IPC for multiple bots via a unified connection.
   [<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
   * https://github.com/eclipse-iceoryx/iceoryx2
 
@@ -38,6 +39,7 @@
   * https://bybit-exchange.github.io/docs/v5/intro
 * [ ] OKX
   * https://www.okx.com/docs-v5/en/
+* [ ] Hyperliquid
 * [ ] Coinbase
 * [ ] Kraken
 * [ ] CDC
@@ -55,11 +57,11 @@
 * [ ] Integrate with Telegram
 
 ## Examples
-* [ ] Market making example using ARMA, ARIMA, or GARCH on the underlying asset.
+* [X] Market making example using ARMA, ARIMA, or GARCH on the underlying asset.
 * [ ] Example using different skew profiles for inventory management.
 * [ ] Example demonstrating latency-aware actions.
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
 * [ ] Example demonstrating the cross-market market-making.
-* [ ] Market making with alpha from the perspectives of statistical arbitrage and optimal execution.
+* [X] Market making with alpha from the perspectives of statistical arbitrage and optimal execution.
 * [X] Queue-position-based market making for large-tick assets.
 * [X] Update the existing examples to align with version 2.0.0.

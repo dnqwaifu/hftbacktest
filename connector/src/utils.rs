@@ -8,13 +8,13 @@ use std::{
 
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
-use hmac::{Hmac, KeyInit, Mac};
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use hmac::{Hmac, Mac};
+use rand::Rng;
 use serde::{
-    de,
-    de::{Error, Visitor},
     Deserialize,
     Deserializer,
+    de,
+    de::{Error, Visitor},
 };
 use sha2::Sha256;
 
@@ -22,7 +22,7 @@ use crate::bybit::BybitError;
 
 struct I64Visitor;
 
-impl<'de> Visitor<'de> for I64Visitor {
+impl Visitor<'_> for I64Visitor {
     type Value = Option<i64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -67,7 +67,7 @@ impl<'de> Visitor<'de> for OptionF64Visitor {
 
 struct F64Visitor;
 
-impl<'de> Visitor<'de> for F64Visitor {
+impl Visitor<'_> for F64Visitor {
     type Value = Option<f64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -297,10 +297,15 @@ impl Equivalent<SymbolOrderId> for RefSymbolOrderId<'_> {
 }
 
 pub fn generate_rand_string(length: usize) -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(length)
-        .map(char::from)
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                             abcdefghijklmnopqrstuvwxyz\
+                             0123456789";
+    let mut rng = rand::rng();
+    (0..length)
+        .map(|_| {
+            let idx = rng.random_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
         .collect()
 }
 

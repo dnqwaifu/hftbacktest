@@ -6,8 +6,11 @@ pub use depth::*;
 use hftbacktest::live::{Instrument, LiveBotBuilder};
 use hftbacktest::{
     backtest::{
+        Asset,
+        Backtest,
+        DataSource,
         assettype::{InverseAsset, LinearAsset},
-        data::{read_npz_file, Data, DataPtr, FeedLatencyAdjustment, Reader},
+        data::{Data, DataPtr, FeedLatencyAdjustment, Reader, read_npz_file},
         models::{
             CommonFees,
             ConstantLatency,
@@ -36,9 +39,6 @@ use hftbacktest::{
             Processor,
         },
         state::State,
-        Asset,
-        Backtest,
-        DataSource,
     },
     prelude::{ApplySnapshot, Event, HashMapMarketDepth, ROIVectorMarketDepth},
 };
@@ -476,6 +476,7 @@ type PowerProbQueueModel3Func = PowerProbQueueFunc3;
 pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<usize> {
     let mut local = Vec::new();
     let mut exch = Vec::new();
+    let mut readers = Vec::new();
     for asset in assets {
         if let (QueueModel::L3FIFOQueueModel {}, ExchangeKind::PartialFillExchange {}) =
             (&asset.queue_model, &asset.exch_kind)
@@ -520,9 +521,10 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
         );
         local.push(asst.local);
         exch.push(asst.exch);
+        readers.push(asst.reader);
     }
 
-    let hbt = Backtest::new(local, exch);
+    let hbt = Backtest::new(local, exch, readers);
     Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
 }
 
@@ -530,6 +532,8 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
 pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<usize> {
     let mut local = Vec::new();
     let mut exch = Vec::new();
+    let mut readers = Vec::new();
+
     for asset in assets {
         if let (QueueModel::L3FIFOQueueModel {}, ExchangeKind::PartialFillExchange {}) =
             (&asset.queue_model, &asset.exch_kind)
@@ -574,9 +578,10 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
         );
         local.push(asst.local);
         exch.push(asst.exch);
+        readers.push(asst.reader);
     }
 
-    let hbt = Backtest::new(local, exch);
+    let hbt = Backtest::new(local, exch, readers);
     Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
 }
 

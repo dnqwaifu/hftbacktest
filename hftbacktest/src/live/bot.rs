@@ -1,5 +1,10 @@
 use std::{
+<<<<<<< HEAD
     borrow::Borrow, collections::{hash_map::Entry, HashMap}, time::{Duration, Instant}
+=======
+    collections::{HashMap, hash_map::Entry},
+    time::{Duration, Instant},
+>>>>>>> upstream/master
 };
 
 use chrono::Utc;
@@ -9,11 +14,15 @@ use tracing::{debug, error, info};
 
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
-    live::{ipc::Channel, Instrument},
+    live::{Instrument, ipc::Channel},
     types::{
         Bot,
         BuildError,
         Event,
+        LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_EVENT,
+        LOCAL_BUY_TRADE_EVENT,
+        LOCAL_SELL_TRADE_EVENT,
         LiveError,
         LiveEvent,
         LiveRequest,
@@ -26,10 +35,6 @@ use crate::{
         Status,
         TimeInForce,
         WaitOrderResponse,
-        LOCAL_ASK_DEPTH_EVENT,
-        LOCAL_BID_DEPTH_EVENT,
-        LOCAL_BUY_TRADE_EVENT,
-        LOCAL_SELL_TRADE_EVENT,
     },
 };
 
@@ -56,10 +61,10 @@ pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
 fn generate_random_id() -> u64 {
     // Initialize the random number generator
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Generate a random u64 value
-    rng.gen::<u64>()
+    rng.random::<u64>()
 }
 
 /// Live [`LiveBot`] builder.
@@ -518,6 +523,18 @@ where
             wait,
             order.side,
         )
+    }
+
+    #[inline]
+    fn modify(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        todo!();
     }
 
     #[inline]

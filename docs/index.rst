@@ -10,7 +10,7 @@ HftBacktest
 High-Frequency Trading Backtesting Tool
 =======================================
 
-This framework is designed for developing high-frequency trading and market-making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
+This framework is designed for developing high frequency trading and market making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
 
 Key Features
 ============
@@ -173,6 +173,8 @@ Tutorials
 * `Risk Mitigation through Price Protection in Extreme Market Conditions <https://hftbacktest.readthedocs.io/en/latest/tutorials/Risk%20Mitigation%20through%20Price%20Protection%20in%20Extreme%20Market%20Conditions.html>`_
 * `Level-3 Backtesting <https://hftbacktest.readthedocs.io/en/latest/tutorials/Level-3%20Backtesting.html>`_
 * `Market Making with Alpha - Order Book Imbalance <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20Order%20Book%20Imbalance.html>`_
+* `Market Making with Alpha - Basis <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20Basis.html>`_
+* `Market Making with Alpha - APT <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20APT.html>`_
 * `Queue-Based Market Making in Large Tick Size Assets <https://hftbacktest.readthedocs.io/en/latest/tutorials/Queue-Based%20Market%20Making%20in%20Large%20Tick%20Size%20Assets.html>`_
 
 Examples
@@ -190,11 +192,6 @@ Please see the `migration guide <https://hftbacktest.readthedocs.io/en/latest/mi
 
 Roadmap
 =======
-
-Currently, new features are being implemented in Rust due to the limitations of Numba, as performance is crucial given the size of the high-frequency data.
-The imminent task is to integrate hftbacktest in Python with hftbacktest in Rust by using the Rust implementation as the backend.
-Meanwhile, the data format, which is currently different, needs to be unified.
-On the pure Python side, the performance reporting tool should be improved to provide more performance metrics with increased speed.
 
 Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
@@ -244,7 +241,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
     :target: https://github.com/nkaz001/hftbacktest
     :alt: Github
 
-.. |rustc| image:: https://shields.io/badge/rustc-1.80.1-blue
+.. |rustc| image:: https://shields.io/badge/rustc-1.85-blue
     :alt: Rust Version
     :target: https://www.rust-lang.org/
 
@@ -267,6 +264,8 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    tutorials/Risk Mitigation through Price Protection in Extreme Market Conditions
    tutorials/Level-3 Backtesting
    tutorials/Market Making with Alpha - Order Book Imbalance
+   tutorials/Market Making with Alpha - Basis
+   tutorials/Market Making with Alpha - APT
    tutorials/Queue-Based Market Making in Large Tick Size Assets
    tutorials/examples
 

@@ -4,34 +4,34 @@ use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use hftbacktest::prelude::{
     Event,
-    LiveEvent,
-    Side,
     LOCAL_ASK_DEPTH_BBO_EVENT,
     LOCAL_ASK_DEPTH_EVENT,
     LOCAL_BID_DEPTH_BBO_EVENT,
     LOCAL_BID_DEPTH_EVENT,
     LOCAL_BUY_TRADE_EVENT,
     LOCAL_SELL_TRADE_EVENT,
+    LiveEvent,
+    Side,
 };
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{debug, error};
 
 use crate::{
     bybit::{
+        BybitError,
         msg,
         msg::{Op, OrderBook, PublicStreamMsg},
-        BybitError,
     },
     connector::PublishEvent,
     utils::parse_depth,
@@ -180,7 +180,7 @@ impl PublicStream {
                         args: vec![]
                     };
                     let s = serde_json::to_string(&op).unwrap();
-                    write.send(Message::Text(s)).await?;
+                    write.send(Message::Text(s.into())).await?;
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
@@ -200,7 +200,7 @@ impl PublicStream {
                             args,
                         };
                         let s = serde_json::to_string(&op).unwrap();
-                        write.send(Message::Text(s)).await?;
+                        write.send(Message::Text(s.into())).await?;
                     }
                     Err(RecvError::Closed) => {
                         return Ok(());
@@ -217,7 +217,7 @@ impl PublicStream {
                             }
                         }
                         Some(Ok(Message::Ping(_))) => {
-                            write.send(Message::Pong(Vec::new())).await?;
+                            write.send(Message::Pong(Bytes::default())).await?;
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(
