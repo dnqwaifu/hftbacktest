@@ -108,17 +108,18 @@ impl TradeDataStream {
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
                         let id = Utc::now().timestamp_micros().to_string();
+                        let upper_case_symbol = symbol.to_ascii_uppercase();
+                        debug!(?symbol, "Subscribing to orderbook");
                         let sub = format!(r#"{{
                             "jsonrpc": "2.0",
                             "type": "command",
                             "method": "subscribe",
                             "params": {{
-                                "symbol": "{symbol}",
+                                "symbol": "{upper_case_symbol}",
                                 "topic": "anonymousTrades"
                             }},
                             "id": "{id}"
                         }}"#);
-                        info!(?sub, "New subscription");
                         write.send(Message::Text(sub)).await?;
                     }
                     Err(RecvError::Closed) => {
@@ -135,7 +136,7 @@ impl TradeDataStream {
                                 self.handle_trades_stream(stream);
                             }
                             Ok(TradesStreamMsg::JsonRpc(result)) => {
-                                trace!(?result, "Subscription request response is received.");
+                                debug!(?result, "Subscription request response is received.");
                             }
                             Ok(TradesStreamMsg::JsonRpcError(error)) => {
                                 error!(?error, "JsonRpcError")
@@ -168,7 +169,7 @@ impl TradeDataStream {
     }
 
 
-    async fn handle_trades_stream(
+    fn handle_trades_stream(
         &mut self, 
         stream: BullishWebSocketResponse,
     ) {

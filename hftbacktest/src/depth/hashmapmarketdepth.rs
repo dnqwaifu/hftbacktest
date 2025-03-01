@@ -89,11 +89,16 @@ impl L2MarketDepth for HashMapMarketDepth {
         qty: f64,
         timestamp: i64,
     ) -> (i64, i64, i64, f64, f64, i64) {
+        // price over tick size, gives unique key in hashmap to insert.
+        // The value stored is the quantity
         let price_tick = (price / self.tick_size).round() as i64;
+
+        // if the qty is < 1 and the lot size is 1.0, then the value will always be zero.
         let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_bid_tick = self.best_bid_tick;
         let prev_qty;
         match self.bid_depth.entry(price_tick) {
+            // we have a price at this depth, get the previous qty at that depth
             Entry::Occupied(mut entry) => {
                 prev_qty = *entry.get();
                 if qty_lot > 0 {
@@ -102,6 +107,7 @@ impl L2MarketDepth for HashMapMarketDepth {
                     entry.remove();
                 }
             }
+            //otherwise insert
             Entry::Vacant(entry) => {
                 prev_qty = 0f64;
                 if qty_lot > 0 {
@@ -110,22 +116,33 @@ impl L2MarketDepth for HashMapMarketDepth {
             }
         }
 
+        // if the qty is zero, then there is no bids at this price level
         if qty_lot == 0 {
+            // if the map entry is also the best bid tick, then 
             if price_tick == self.best_bid_tick {
+                // get the next depth starting high and moving low
                 self.best_bid_tick =
                     depth_below(&self.bid_depth, self.best_bid_tick, self.low_bid_tick);
+                let bbt = self.best_ask_tick;
+                // if the result was INVALID_MIN, then that means our book is empty?
                 if self.best_bid_tick == INVALID_MIN {
                     self.low_bid_tick = INVALID_MAX
                 }
             }
         } else {
+            // if the price tick is bigger than the best bid then set the new best bid
             if price_tick > self.best_bid_tick {
                 self.best_bid_tick = price_tick;
+
+                let bbt = self.best_ask_tick;
+                // if best bid tick is >= best ask, get the next ask price
                 if self.best_bid_tick >= self.best_ask_tick {
                     self.best_ask_tick =
                         depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
+                    let bat = self.best_ask_tick;
                 }
             }
+            // set the lowers bid tick 
             self.low_bid_tick = self.low_bid_tick.min(price_tick);
         }
         (

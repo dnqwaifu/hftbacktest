@@ -4,11 +4,12 @@ use std::{
 };
 
 
+use chrono::Utc;
 use hftbacktest::types::{Order, Status, OrderId};
 
 use crate::{
     connector::GetOrders,
-    utils::{generate_rand_digits, SymbolOrderId},
+    utils::{generate_rand_digits, RefSymbolOrderId, SymbolOrderId},
 };
 
 use super::{
@@ -100,11 +101,10 @@ impl OrderManager {
                 order_ext.removed_by_ws = true;
 
                 if !already_removed {
-                    todo!("This order needs to be removed from the order_id_map");
-                    // self.order_id_map.remove(&SymbolOrderId::new(
-                    //     &order_ext.symbol.,
-                    //     order_ext.order.order_id,
-                    // ));
+                    self.order_id_map.remove(&SymbolOrderId::new(
+                        order_ext.symbol.clone(),
+                        order_ext.order.order_id,
+                    ));
                 }
             }
 
@@ -121,25 +121,127 @@ impl OrderManager {
     pub fn update_from_rest(
         &mut self,
         client_order_id: &ClientOrderId,
+        order: &Order,
         resp: &CommandResponse,
     ) -> Option<Order> {
-        todo!("This needs to combine the info sent to the command and the command response.");
+        let order_ext = self.orders.get_mut(client_order_id)?;
+
+        let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
+        if order.exch_timestamp >= order_ext.order.exch_timestamp {
+            order_ext.order.update(&order);
+        }
+
+        if order.status != Status::New && order.status != Status::PartiallyFilled {
+            order_ext.removed_by_rest = true;
+            if !already_removed {
+                self.order_id_map.remove(&SymbolOrderId::new(
+                    order_ext.symbol.clone(),
+                    order_ext.order.order_id,
+                ));
+ 
+            }
+        }
+        /*
+            In classic "RESTful" failure, the API does not return the object created.
+                As a workaround we use the bot Order and wait for WS ack to update.
+        */
+        order_ext.order.status = Status::New;
+        order_ext.order.req = Status::None;
+
+        let result = if already_removed {
+            None
+        } else {
+            Some(order_ext.order.clone())
+        };
+
+        result
     }
+
+    pub fn update_from_rest_fail(
+        &mut self,
+        client_order_id: &ClientOrderId,
+        status: Option<Status>,
+    ) -> Option<Order> {
+        let order_ext = self.orders.get_mut(client_order_id)?;
+        // .ok_or(BinanceFuturesError::OrderNotFound)?;
+
+        let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
+        if let Some(status) = status {
+            order_ext.order.status = status;
+        }
+        order_ext.order.req = Status::None;
+
+        let result = if already_removed {
+            None
+        } else {
+            Some(order_ext.order.clone())
+        };
+
+        if order_ext.order.status != Status::New
+            && order_ext.order.status != Status::PartiallyFilled
+        {
+            order_ext.removed_by_rest = true;
+            if !already_removed {
+                self.order_id_map.remove(&SymbolOrderId::new(
+                    order_ext.symbol.clone(),
+                    order_ext.order.order_id,
+                ));
+            }
+
+            if order_ext.removed_by_ws && order_ext.removed_by_rest {
+                self.orders.remove(client_order_id).unwrap();
+            }
+        }
+
+        result
+    }
+
+ 
 
     pub fn update_cancel_fail(
         &mut self,
         client_order_id: &ClientOrderId,
         error: &BullishError,
     ) -> Option<Order> {
-        todo!("This needs to combine the info sent to the command and the command response.");
+        match error {
+            &BullishError::OrderError ( 3002, _ ) => {
+                // The given order may no longer exist; it could have already been filled or
+                // canceled. But, it cannot determine the order status because it lacks the
+                // necessary information.
+                self.update_from_rest_fail(client_order_id, Some(Status::None))
+            }
+            error => {
+                tracing::error!(?error, "cancel error");
+                self.update_from_rest_fail(client_order_id, None)
+            }
+        }
     }
 
     pub fn update_submit_fail(
         &mut self,
         client_order_id: &ClientOrderId,
+        order: &Order,
         error: &BullishError,
     ) -> Option<Order> {
-        todo!("This needs to combine the info sent to the command and the command response.");
+        match error {
+            BullishError::OrderError(1002, _) => {
+                // Server is currently overloaded with other requests. Please try again in a few minutes.
+                tracing::error!("Server is currently overloaded with other requests. Please try again in a few minutes.");
+            }
+            &BullishError::OrderError(2015, _) => {
+                // Margin is insufficient.
+                tracing::error!("Margin is insufficient.");
+            }
+            &BullishError::OrderError(3034, _) => {
+                // Too many new orders; current limit is ?????
+                tracing::error!("Too many new orders; current limit is ????.");
+            }
+            error => {
+                tracing::error!(?error, "submit error");
+            }
+        }
+
+        self.update_from_rest_fail(client_order_id, Some(Status::Expired))
     }
 
     pub fn prepare_client_order_id(&mut self, symbol: String, order: Order) -> Option<String> {
@@ -168,11 +270,10 @@ impl OrderManager {
         Some(client_order_id)
     }
 
-    pub fn get_client_order_id(&self, symbol: &str, order_id: OrderId) -> Option<String> {
-        todo!("Figure out why this is the wrong type");
-        // self.order_id_map
-        //     .get(&RefSymbolOrderId::new(symbol, order_id))
-        //     .cloned()
+    pub fn get_client_order_id(&self, symbol: String, order_id: OrderId) -> Option<String> {
+        self.order_id_map
+            .get(&SymbolOrderId::new(symbol, order_id))
+            .cloned()
     }
 
     pub fn gc(&mut self) {
@@ -200,6 +301,37 @@ impl OrderManager {
         */
     }
 
+    pub fn cancel_all_from_rest(&mut self, symbol: &str) -> Vec<Order> {
+        let mut removed_orders = Vec::new();
+        let mut removed_order_ids = Vec::new();
+        for (client_order_id, order_ext) in &mut self.orders {
+            if order_ext.symbol != symbol {
+                continue;
+            }
+            let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
+
+            order_ext.removed_by_rest = true;
+            order_ext.order.status = Status::Canceled;
+            // todo: check if the exchange timestamp exists in the REST response.
+            order_ext.order.exch_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
+            if !already_removed {
+                self.order_id_map
+                    .remove(&SymbolOrderId::new(order_ext.symbol.clone(), order_ext.order.order_id));
+                removed_orders.push(order_ext.order.clone());
+            }
+
+            // Completely deletes the order if it is removed by both the REST response and the
+            // WebSocket stream.
+            if order_ext.removed_by_ws && order_ext.removed_by_rest {
+                removed_order_ids.push(client_order_id.clone());
+            }
+        }
+
+        for order_id in removed_order_ids {
+            self.orders.remove(&order_id).unwrap();
+        }
+        removed_orders
+    }
 }
 
 impl GetOrders for OrderManager {

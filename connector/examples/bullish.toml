@@ -1,0 +1,29 @@
+# Mainnet:
+#  - Linear: wss://stream.bullish-test.com/v5/public/linear
+# Testnet:
+#  - Linear: wss://stream-testnet.bullish-test.com/v5/public/linear
+  orderbook_url = "wss://api.simnext.bullish-test.com/trading-api/v1/market-data/orderbook"
+# orderbook_url = "wss://api.exchange.bullish.com/trading-api/v1/market-data/orderbook"
+
+# Mainnet:
+#  - Linear: wss://stream.bullish-test.com/v5/public/linear
+# Testnet:
+#  - Linear: wss://stream-testnet.bullish-test.com/v5/public/linear
+  trades_url = "wss://api.simnext.bullish-test.com/trading-api/v1/market-data/trades"
+# trades_url = "wss://api.exchange.bullish.com/trading-api/v1/market-data/trades"
+
+# Mainnet: wss://stream.bullish-test.com/v5/private
+# Testnet: wss://stream-testnet.bullish-test.com/v5/private
+private_url = "wss://api.simnext.bullish-test.com/trading-api/v1/private-data"
+
+# Mainnet: https://api.bullish-test.com
+# Testnet: https://api-testnet.bullish-test.com
+  rest_url = "https://api.simnext.bullish-test.com"
+# rest_url = "https://api.exchange.bullish.com"
+
+# Linear
+category = "linear"
+
+order_prefix = "13011"
+api_key = "HMAC-5dca2bc9-3efc-41e3-9542-a51c56c25dd8"
+secret = "93d24e47-a5de-4647-b79d-21482d0ee27e"

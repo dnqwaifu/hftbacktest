@@ -1,6 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
-    time::{Duration, Instant},
+    borrow::Borrow, collections::{hash_map::Entry, HashMap}, time::{Duration, Instant}
 };
 
 use chrono::Utc;
@@ -209,6 +208,7 @@ where
     ) -> Result<bool, BotError> {
         match ev {
             LiveEvent::Feed { event, .. } => {
+                //debug!(%inst_no, ?event, "Event::Feed");
                 let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
                 instrument.last_feed_latency = Some((event.exch_ts, event.local_ts));
                 if event.is(LOCAL_BID_DEPTH_EVENT) {

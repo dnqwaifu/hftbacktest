@@ -12,6 +12,16 @@ use std::fmt::{self, Debug};
 pub mod rest;
 pub mod ws;
 
+// Dunno why it works on others but not this?
+fn from_vec_of_string_to_vec_of_tuple<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error> where D: Deserializer<'de>, { 
+    let vec = Vec::<String>::deserialize(deserializer)?; 
+    if vec.len() % 2 != 0 { 
+        return Err(serde::de::Error::custom("Expected even number of elements in the array")); 
+    } 
+    Ok(vec.chunks(2) .map(|chunk| (chunk[0].clone(), chunk[1].clone())).collect())
+}
+
+
 // Bullish API can be kind of whacky & inconsistent, status codes can be
 // either a string or a number.
 fn deserialize_i32_from_string_or_int<'de, D>(deserializer: D) -> Result<i32, D::Error>

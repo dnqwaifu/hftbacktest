@@ -34,14 +34,51 @@ pub struct BullishClient {
 
 impl BullishClient {
     pub fn new(url: &str, api_key: &str, secret: &str) -> Self {
+
+        let blocking_client = reqwest::blocking::Client::new(); 
+        let ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+            .to_string();
+        let message = &format!("{ts}{ts}GET/trading-api/v1/users/hmac/login");
+        let sig = sign_hmac_sha256(&secret, message);
+        let resp =
+            blocking_client 
+            .get(&format!("{}/trading-api/v1/users/hmac/login", url))
+            .header("BX-PUBLIC-KEY", api_key)
+            .header("BX-NONCE", ts.as_str())
+            .header("BX-SIGNATURE", sig)
+            .header("BX-TIMESTAMP", ts.as_str())
+            .send()
+            .unwrap();
+
+        let resp= resp.json::<HmacResponse>().unwrap();
+        let jwt = resp.token;
+        let authorizer = resp.authorizer;
+        let trading_account_id: String;
+
+        let resp = 
+            blocking_client 
+            .get(&format!("{}/trading-api/v1/accounts/trading-accounts", url))
+            .header("Authorization", format!("Bearer {jwt}"))
+            .send()
+            .unwrap();
+ 
+        let resp= resp.json::<Vec<TradingAccount>>().unwrap();
+        if let Some(trading_account) = resp.first() {
+            trading_account_id = trading_account.trading_account_id.clone();
+        } else {
+            panic!("Failed to initialize Bullish Client");
+        }
         Self {
             client: reqwest::Client::new(),
             url: url.to_string(),
             secret: secret.to_string(),
             api_key: api_key.to_string(),
-            jwt: String::default(),
-            trading_account_id: String::default(),
-            authorizer: String::default(),
+            jwt: jwt,
+            trading_account_id: trading_account_id,
+            authorizer: authorizer,
             nonce: String::default(),
         }
     }
@@ -178,7 +215,7 @@ impl BullishClient {
     pub async fn cancel_order(
         &self,
         client_order_id: &str,
-        symbol: &str,
+        symbol: String,
     ) -> Result<CommandResponse, BullishError> {
         let cmd = BullishCommandV3 {
             command_type: "V3CancelOrder".to_string(),
@@ -282,6 +319,7 @@ impl BullishClient {
         let digest = encode_hex(hasher.finalize().as_slice());
         let sig = sign_hmac_sha256(&self.secret, &digest);
 
+        tracing::debug!(?body, ?next_nonce, ?sig, ?ts, ?self.jwt, "Sending order");
         let resp = self
             .post_signed(
                 &format!("/trading-api/v2/orders"),

@@ -1,10 +1,9 @@
 use serde::Deserialize;
 use tokio_tungstenite::tungstenite;
 use std::{
-    collections::{HashMap, HashSet},
-    sync::{
+    collections::{HashMap, HashSet}, num::ParseFloatError, sync::{
         Arc, Mutex,
-    },
+    }
 };
 
 use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
@@ -40,6 +39,8 @@ pub enum BullishError {
     InvalidRequest,
     #[error("ConnectionInterrupted")]
     ConnectionInterrupted,
+    #[error("InvalidPxQty: {0}")]
+    InvalidPxQty(#[from] ParseFloatError),
     #[error("ConnectionAbort: {0}")]
     ConnectionAbort(String),
     #[error("Feed Error")]
@@ -78,6 +79,7 @@ impl From<BullishError> for Value {
                 map.insert("msg".to_string(), Value::String(msg));
                 map
             }),
+            BullishError::InvalidPxQty(_) => Value::String(value.to_string()),
             BullishError::Tunstenite(error) => Value::String(format!("{error}")),
             BullishError::ConnectionInterrupted => Value::String(value.to_string()),
             BullishError::ConnectionAbort(_) => Value::String(value.to_string()),
@@ -154,13 +156,6 @@ impl ConnectorBuilder for Bullish {
         // FIXME we can maybe use signaling to login once and update the tokens on the different instances?
         // let rt = Runtime::new().unwrap();
         let client = BullishClient::new(&config.rest_url, &config.api_key, &config.secret);
-        // let jwt = rt.block_on(client.refresh_jwt()).unwrap();
-        // let trading_accounts = rt.block_on(client.configure_trading_account()).unwrap();
-        // let mut trading_account_id = String::default();
-        // if let Some(trading_account) = trading_accounts.first() {
-        //     trading_account_id = trading_account.trading_account_id.clone();
-        // }
-
         Ok(Bullish {
             // stuff like url & secrets
             config,
@@ -318,6 +313,7 @@ impl Connector for Bullish {
         self.connect_trade_data_stream(ev_tx.clone());
         // Connects to the user stream only if the API key and secret are provided.
         if !self.config.api_key.is_empty() && !self.config.secret.is_empty() {
+
             self.connect_private_date_stream(ev_tx.clone());
         }
     }
@@ -355,10 +351,11 @@ impl Connector for Bullish {
                         .await;
                     match result {
                         Ok(resp) => {
+                            tracing::info!(?resp, "Submitted");
                             if let Some(order) = order_manager
                                 .lock()
                                 .unwrap()
-                                .update_from_rest(&client_order_id, &resp)
+                                .update_from_rest(&client_order_id, &order, &resp)
                             {
                                 tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
                                     symbol,
@@ -368,10 +365,11 @@ impl Connector for Bullish {
                             }
                         }
                         Err(error) => {
+                            error!(?order, ?error, "Failed to submit order");
                             if let Some(order) = order_manager
                                 .lock()
                                 .unwrap()
-                                .update_submit_fail(&client_order_id, &error)
+                                .update_submit_fail(&client_order_id, &order, &error)
                             {
                                 tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
                                     symbol,
@@ -414,17 +412,17 @@ impl Connector for Bullish {
             let client_order_id = order_manager
                 .lock()
                 .unwrap()
-                .get_client_order_id(&symbol, order.order_id);
+                .get_client_order_id(symbol.clone(), order.order_id);
 
             match client_order_id {
                 Some(client_order_id) => {
-                    let result = client.cancel_order(&client_order_id, &symbol).await;
+                    let result = client.cancel_order(&client_order_id, symbol.clone()).await;
                     match result {
                         Ok(resp) => {
                             if let Some(order) = order_manager
                                 .lock()
                                 .unwrap()
-                                .update_from_rest(&client_order_id, &resp)
+                                .update_from_rest(&client_order_id, &order, &resp)
                             {
                                 tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
                                     symbol,

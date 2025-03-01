@@ -38,11 +38,12 @@ use crate::{
 pub mod binancefutures;
 #[cfg(feature = "bybit")]
 pub mod bybit;
+#[cfg(feature = "bullish")]
+pub mod bullish;
 
 mod connector;
 mod fuse;
 mod utils;
-pub mod bullish;
 
 struct Position {
     qty: f64,

@@ -25,9 +25,29 @@ use crate::{
         rest::BullishClient,
         BullishError,
     },
-    utils::parse_depth,
     connector::PublishEvent,
 };
+
+pub type PxQty = (f64, f64);
+
+pub fn parse_depth(
+    bids: Vec<(String, String)>,
+    asks: Vec<(String, String)>,
+) -> Result<(Vec<PxQty>, Vec<PxQty>), BullishError> {
+    let mut bids_ = Vec::with_capacity(bids.len());
+    for (px, qty) in bids {
+        bids_.push(parse_px_qty_tup(px, qty)?);
+    }
+    let mut asks_ = Vec::with_capacity(asks.len());
+    for (px, qty) in asks {
+        asks_.push(parse_px_qty_tup(px, qty)?);
+    }
+    Ok((bids_, asks_))
+}
+
+pub fn parse_px_qty_tup(px: String, qty: String) -> Result<PxQty, BullishError> {
+    Ok((px.parse()?, qty.parse()?))
+}
 
 pub struct MarketDataStream {
     client: BullishClient,
@@ -57,12 +77,13 @@ impl MarketDataStream {
         }
     }
 
-    async fn handle_market_data_stream(
+    fn handle_market_data_stream(
         &mut self, 
         stream: BullishWebSocketResponse,
     ) {
         if stream.event_topic.starts_with("V1TALevel1") {
             let data: OrderBookL1 = serde_json::from_value(stream.data).unwrap();
+            trace!(?data, "V1TALevel1");
             *self.prev_u
             .entry(data.symbol.clone())
             .or_insert(data.sequence_number) = data.sequence_number;
@@ -90,7 +111,7 @@ impl MarketDataStream {
                             .send(PublishEvent::LiveEvent(LiveEvent::Feed { 
                                 symbol: data.symbol.clone(),
                                 event: Event {
-                                    ev: LOCAL_BID_DEPTH_EVENT,
+                                    ev: LOCAL_ASK_DEPTH_EVENT,
                                     exch_ts: data.timestamp * 1_000_000,
                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                     order_id: 0,
@@ -109,6 +130,7 @@ impl MarketDataStream {
 
         } else if stream.event_topic.starts_with("V1TALevel2") {
             let data: OrderBookL2 = serde_json::from_value(stream.data).unwrap();
+            trace!(?data, "V1TALevel2");
             let seq_num = data.sequence_number_range.split_last().unwrap();
             *self.prev_u
             .entry(data.symbol.clone())
@@ -118,6 +140,7 @@ impl MarketDataStream {
                 Ok((bids, asks)) => {
                     self.ev_tx.send(PublishEvent::BatchStart(TO_ALL)).unwrap();
                     for( px, qty) in bids {
+
                         self.ev_tx
                             .send(PublishEvent::LiveEvent(LiveEvent::Feed { 
                                 symbol: data.symbol.clone(),
@@ -138,7 +161,7 @@ impl MarketDataStream {
                             .send(PublishEvent::LiveEvent(LiveEvent::Feed { 
                                 symbol: data.symbol.clone(),
                                 event: Event {
-                                    ev: LOCAL_BID_DEPTH_EVENT,
+                                    ev: LOCAL_ASK_DEPTH_EVENT,
                                     exch_ts: data.timestamp * 1_000_000,
                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                     order_id: 0,
@@ -198,18 +221,19 @@ impl MarketDataStream {
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
+                        let upper_case_symbol = symbol.to_ascii_uppercase();
+                        debug!(?symbol, "Subscribing to orderbook");
                         let id = Utc::now().timestamp_micros().to_string();
                         let sub = format!(r#"{{
                             "jsonrpc": "2.0",
                             "type": "command",
                             "method": "subscribe",
                             "params": {{
-                                "symbol": "{symbol}",
+                                "symbol": "{upper_case_symbol}",
                                 "topic": "l2Orderbook"
                             }},
                             "id": "{id}"
                         }}"#);
-                        info!(?sub, "New subscription");
                         write.send(Message::Text(sub)).await?;
                         let id = Utc::now().timestamp_micros().to_string();
                         let sub = format!(r#"{{
@@ -217,12 +241,11 @@ impl MarketDataStream {
                             "type": "command",
                             "method": "subscribe",
                             "params": {{
-                                "symbol": "{symbol}",
+                                "symbol": "{upper_case_symbol}",
                                 "topic": "l1Orderbook"
                             }},
                             "id": "{id}"
                         }}"#);
-                        info!(?sub, "New subscription");
                         write.send(Message::Text(sub)).await?;
                     }
                     Err(RecvError::Closed) => {
@@ -239,7 +262,7 @@ impl MarketDataStream {
                                 self.handle_market_data_stream(stream);
                             }
                             Ok(OrderbookStreamMsg::JsonRpc(result)) => {
-                                trace!(?result, "Subscription request response is received.");
+                                debug!(?result, "Subscription request response is received.");
                             }
                             Ok(OrderbookStreamMsg::JsonRpcError(error)) => {
                                 error!(?error, "JsonRpcError");

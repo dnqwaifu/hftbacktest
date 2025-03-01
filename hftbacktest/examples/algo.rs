@@ -33,6 +33,8 @@ where
         }
 
         let depth = hbt.depth(0);
+        let ba = depth.best_ask();
+        let bb = depth.best_bid();
         let position = hbt.position(0);
 
         if depth.best_bid_tick() == INVALID_MIN || depth.best_ask_tick() == INVALID_MAX {

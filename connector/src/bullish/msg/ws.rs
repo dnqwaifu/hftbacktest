@@ -6,7 +6,7 @@ use serde::{
 
 use super::{
     deserialize_i32_from_string_or_int, from_str_to_side, from_str_to_status, from_str_to_tif,
-    from_str_to_type,
+    from_str_to_type, from_vec_of_string_to_vec_of_tuple
 };
 
 
@@ -445,7 +445,9 @@ pub struct OrderBookL1 {
     pub published_at_timestamp: String,
     #[serde(rename = "sequenceNumber", default,deserialize_with = "from_str_to_i64")]
     pub sequence_number: i64,
+    #[serde(deserialize_with = "from_vec_of_string_to_vec_of_tuple")]
     pub bid: Vec<(String, String)>,
+    #[serde(deserialize_with = "from_vec_of_string_to_vec_of_tuple")]
     pub ask: Vec<(String, String)>,
 }
 
@@ -454,7 +456,9 @@ pub struct OrderBookL1 {
 pub struct OrderBookL2 {
     #[serde(deserialize_with = "from_str_to_i64")]
     pub timestamp: i64,
+    #[serde(deserialize_with = "from_vec_of_string_to_vec_of_tuple")]
     pub bids: Vec<(String, String)>,
+    #[serde(deserialize_with = "from_vec_of_string_to_vec_of_tuple")]
     pub asks: Vec<(String, String)>,
     pub symbol: String,
     #[serde(rename = "sequenceNumberRange", default)]

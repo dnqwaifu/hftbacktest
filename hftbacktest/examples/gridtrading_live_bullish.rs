@@ -1,4 +1,5 @@
 use algo::gridtrading;
+use chrono::Utc;
 use hftbacktest::{
     live::{
         ipc::iceoryx::IceoryxUnifiedChannel,
@@ -7,13 +8,11 @@ use hftbacktest::{
         LiveBotBuilder,
         LoggingRecorder,
     },
-    prelude::{Bot, ErrorKind, HashMapMarketDepth},
+    prelude::{Bot, ErrorKind, HashMapMarketDepth}, types::Status,
 };
 use tracing::error;
 
 mod algo;
-
-const ORDER_PREFIX: &str = "131x";
 
 fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
     let mut hbt = LiveBotBuilder::new()
@@ -22,7 +21,7 @@ fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
             "BTCUSDC",
             0.1,
             0.001,
-            HashMapMarketDepth::new(0.000001, 1.0),
+            HashMapMarketDepth::new(0.1, 0.001),
             0,
         ))
         .error_handler(|error| {
@@ -40,6 +39,19 @@ fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
                 ErrorKind::Custom(errno) => {
                     error!(%errno, "custom");
                 }
+            }
+            Ok(())
+        })
+        .order_recv_hook(|req, resp| {
+            if (req.req == Status::New || req.req == Status::Canceled) && (resp.req == Status::None)
+            {
+                tracing::info!(
+                    req_timestamp = req.local_timestamp,
+                    exch_timestamp = resp.exch_timestamp,
+                    resp_timestamp = Utc::now().timestamp_nanos_opt().unwrap(),
+                    req = ?req.req,
+                    "Order response is received."
+                );
             }
             Ok(())
         })
