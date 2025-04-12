@@ -131,31 +131,36 @@ where
         }
     }
 
+    fn make_response(&mut self, order: Order, timestamp: i64) {
+        let local_recv_timestamp =
+            order.exch_timestamp + self.order_latency.response(timestamp, &order);
+        self.orders_to.append(order, local_recv_timestamp);
+    }
+
     fn process_recv_order_(
         &mut self,
         mut order: Order,
         recv_timestamp: i64,
     ) -> Result<(), BacktestError> {
-        order.req = Status::None;
-
         // Processes a new order.
         if order.req == Status::New {
+            order.req = Status::None;
             self.ack_new(&mut order, recv_timestamp)?;
         }
         // Processes a cancel order.
         else if order.req == Status::Canceled {
+            order.req = Status::None;
             self.ack_cancel(&mut order, recv_timestamp)?;
         }
         // Processes a modify order.
         else if order.req == Status::Replaced {
+            order.req = Status::None;
             self.ack_modify::<false>(&mut order, recv_timestamp)?;
         } else {
             return Err(BacktestError::InvalidOrderRequest);
         }
         // Makes the response.
-        let local_recv_timestamp =
-            recv_timestamp + self.order_latency.response(recv_timestamp, &order);
-        self.orders_to.append(order, local_recv_timestamp);
+        self.make_response(order, recv_timestamp);
         Ok(())
     }
 
@@ -235,7 +240,7 @@ where
         Ok(())
     }
 
-    fn fill<const INSERT_BUS: bool>(
+    fn fill<const MAKE_RESPONSE: bool>(
         &mut self,
         order: &mut Order,
         timestamp: i64,
@@ -268,10 +273,8 @@ where
 
         self.state.apply_fill(order);
 
-        if INSERT_BUS {
-            let local_recv_timestamp =
-                order.exch_timestamp + self.order_latency.response(timestamp, order);
-            self.orders_to.append(order.clone(), local_recv_timestamp);
+        if MAKE_RESPONSE {
+            self.make_response(order.clone(), timestamp);
         }
         Ok(())
     }
