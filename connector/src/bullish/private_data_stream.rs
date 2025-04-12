@@ -4,7 +4,10 @@ use futures_util::{SinkExt, StreamExt};
 use hftbacktest::types::LiveEvent;
 use tokio::{
     select,
-    sync::mpsc::UnboundedSender,
+    sync::{
+        broadcast::{Receiver, error::RecvError},
+        mpsc::UnboundedSender,
+    },
 };
 use tokio_tungstenite::{
     connect_async,
@@ -22,6 +25,8 @@ use crate::{
     connector::PublishEvent,
 };
 
+use super::Bullish;
+
 
 pub struct PrivateDataStream {
     api_key: String,
@@ -30,6 +35,7 @@ pub struct PrivateDataStream {
     order_manager: SharedOrderManager,
     //symbols: SharedSymbolSet,
     client: BullishClient,
+    symbol_rx: Receiver<String>,
 }
 
 impl PrivateDataStream {
@@ -40,6 +46,7 @@ impl PrivateDataStream {
         order_manager: SharedOrderManager,
         //symbols: SharedSymbolSet,
         client: BullishClient,
+        symbol_rx: Receiver<String>,
     ) -> Self {
         Self {
             api_key,
@@ -48,6 +55,7 @@ impl PrivateDataStream {
             order_manager,
             //symbols,
             client,
+            symbol_rx,
         }
     }
 
@@ -67,7 +75,7 @@ impl PrivateDataStream {
         debug!(?trading_account_id, "TA ID");
 
 
-        debug!("Connecting to public orderbook...");
+        debug!("Connecting to private data feed...");
         let mut request = url.into_client_request()?;
         let headers = request.headers_mut();
         // wonky auth requires header set f"cookie=JWT_COOKIE={JWT_TOKEN};";
@@ -75,7 +83,7 @@ impl PrivateDataStream {
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
-        debug!("Connected to public orderbook stream...");
+        debug!("Connected to private data feed...");
 
         let id = Utc::now().timestamp_micros().to_string();
         let sub = format!(r#"{{
@@ -86,7 +94,7 @@ impl PrivateDataStream {
                 "topic": "heartbeat"
             }},
             "id":"{id}"
-        }}"#);
+        }}"#).into();
         write.send(Message::Text(sub)).await?;
 
         let id = Utc::now().timestamp_micros().to_string();
@@ -99,7 +107,7 @@ impl PrivateDataStream {
                 "topic": "orders",
                 "tradingAccountId": "{trading_account_id}"
             }}
-        }}"#);
+        }}"#).into();
         write.send(Message::Text(sub)).await?;
 
         let id = Utc::now().timestamp_micros().to_string();
@@ -112,55 +120,55 @@ impl PrivateDataStream {
                 "tradingAccountId":"{trading_account_id}"
             }},
             "id":"{id}"
-        }}"#))).await?;
+        }}"#).into())).await?;
 
-        let id = Utc::now().timestamp_micros().to_string();
-        write.send(Message::Text(format!(r#"{{
-            "jsonrpc":"2.0",
-            "method":"subscribe",
-            "type":"command",
-            "params": {{
-                "topic":"assetAccounts",
-                "tradingAccountId":"{trading_account_id}"
-            }},
-            "id":"{id}"
-        }}"#))).await?;
+        // let id = Utc::now().timestamp_micros().to_string();
+        // write.send(Message::Text(format!(r#"{{
+        //     "jsonrpc":"2.0",
+        //     "method":"subscribe",
+        //     "type":"command",
+        //     "params": {{
+        //         "topic":"assetAccounts",
+        //         "tradingAccountId":"{trading_account_id}"
+        //     }},
+        //     "id":"{id}"
+        // }}"#).into())).await?;
 
-        let id = Utc::now().timestamp_micros().to_string();
-        write.send(Message::Text(format!(r#"{{
-            "jsonrpc":"2.0",
-            "method":"subscribe",
-            "type":"command",
-            "params": {{
-                "topic":"tradingAccounts",
-                "tradingAccountId":"{trading_account_id}"
-            }},
-            "id":"{id}"
-        }}"#))).await?;
+        // let id = Utc::now().timestamp_micros().to_string();
+        // write.send(Message::Text(format!(r#"{{
+        //     "jsonrpc":"2.0",
+        //     "method":"subscribe",
+        //     "type":"command",
+        //     "params": {{
+        //         "topic":"tradingAccounts",
+        //         "tradingAccountId":"{trading_account_id}"
+        //     }},
+        //     "id":"{id}"
+        // }}"#).into())).await?;
 
-        let id = Utc::now().timestamp_micros().to_string();
-        write.send(Message::Text(format!(r#"{{
-            "jsonrpc":"2.0",
-            "method":"subscribe",
-            "type":"command",
-            "params": {{
-                "topic":"derivativesPositionsV2",
-                "tradingAccountId":"{trading_account_id}"
-            }},
-            "id":"{id}"
-        }}"#))).await?;
+        // let id = Utc::now().timestamp_micros().to_string();
+        // write.send(Message::Text(format!(r#"{{
+        //     "jsonrpc":"2.0",
+        //     "method":"subscribe",
+        //     "type":"command",
+        //     "params": {{
+        //         "topic":"derivativesPositionsV2",
+        //         "tradingAccountId":"{trading_account_id}"
+        //     }},
+        //     "id":"{id}"
+        // }}"#).into())).await?;
 
-        let id = Utc::now().timestamp_micros().to_string();
-        write.send(Message::Text(format!(r#"{{
-            "jsonrpc":"2.0",
-            "method":"subscribe",
-            "type":"command",
-            "params": {{
-                "topic":"ammInstructions",
-                "tradingAccountId":"{trading_account_id}"
-            }},
-            "id":"{id}"
-        }}"#))).await?;
+        // let id = Utc::now().timestamp_micros().to_string();
+        // write.send(Message::Text(format!(r#"{{
+        //     "jsonrpc":"2.0",
+        //     "method":"subscribe",
+        //     "type":"command",
+        //     "params": {{
+        //         "topic":"ammInstructions",
+        //         "tradingAccountId":"{trading_account_id}"
+        //     }},
+        //     "id":"{id}"
+        // }}"#).into())).await?;
 
         loop {
             select! {
@@ -172,8 +180,53 @@ impl PrivateDataStream {
                         "method": "keepalivePing",
                         "params": {{}},
                         "id": "{id}"
-                    }}"#);
+                    }}"#).into();
                     write.send(Message::Text(keep_alive)).await?;
+                },
+                msg = self.symbol_rx.recv() => {
+                    match msg {
+                        Ok(symbol) => {
+                            tracing::info!(?symbol, "New symbol registered");
+                            let client = self.client.clone();
+                            let order_manager = self.order_manager.clone();
+                            let ev_tx = self.ev_tx.clone();
+
+                            tokio::spawn(async move {
+                                // Cancel all orders in order to start with the clean state.
+                                if let Err(error) = cancel_all(
+                                    client.clone(),
+                                    symbol.clone(),
+                                    order_manager.clone(),
+                                    ev_tx.clone()
+                                ).await {
+                                    error!(
+                                        ?error,
+                                        %symbol,
+                                        "Couldn't cancel all orders."
+                                    );
+                                }
+
+                                // Fetches the initial states such as positions and open orders.
+                                if let Err(error) = get_position(
+                                    client.clone(),
+                                    symbol.clone(),
+                                    ev_tx.clone()
+                                ).await {
+                                    error!(
+                                        ?error,
+                                        %symbol,
+                                        "Couldn't get position"
+                                    );
+                                }
+                            });
+                        }
+                        Err(RecvError::Closed) => {
+                            return Ok(());
+                        }
+                        Err(RecvError::Lagged(num)) => {
+                            error!("{num} subscription requests were missed.");
+                        }
+                    }
                 },
                 //PrivateStreamMsg::BullishWebSocketResponse
                 message = read.next() => match message {
@@ -279,4 +332,53 @@ impl PrivateDataStream {
         }
     }
 
+}
+
+pub async fn get_position(
+    client: BullishClient,
+    symbol: String,
+    ev_tx: UnboundedSender<PublishEvent>,
+) -> Result<(), BullishError> {
+    // todo: rate-limit throttling.
+    let position = client.get_position_information(&symbol).await.unwrap();
+    position.into_iter().for_each(|position| {
+        let qty = match position.side.as_str() {
+            "Buy" => position.quantity,
+            "Sell" => -position.quantity,
+            _ => {
+                if position.quantity!= 0.0 {
+                    panic!("Unknown position side. position={position:?}");
+                }
+                0.0
+            }
+        };
+        ev_tx
+            .send(PublishEvent::LiveEvent(LiveEvent::Position {
+                symbol: symbol.to_string(),
+                qty,
+                exch_ts: position.updated_at_timestamp,
+            }))
+            .unwrap();
+    });
+    Ok(())
+}
+
+pub async fn cancel_all(
+    client: BullishClient,
+    symbol: String,
+    order_manager: SharedOrderManager,
+    ev_tx: UnboundedSender<PublishEvent>,
+) -> Result<(), BullishError> {
+    // todo: rate-limit throttling.
+    client.cancel_all_orders(&symbol).await.unwrap();
+    let orders = order_manager.lock().unwrap().cancel_all(&symbol);
+    for order in orders {
+        ev_tx
+            .send(PublishEvent::LiveEvent(LiveEvent::Order {
+                symbol: symbol.clone(),
+                order,
+            }))
+            .unwrap();
+    }
+    Ok(())
 }

@@ -258,6 +258,7 @@ impl Bullish {
         let secret = self.config.secret.clone();
         let order_manager = self.order_manager.clone();
         let client = self.client.clone();
+        let symbol_tx = self.symbol_tx.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -281,6 +282,7 @@ impl Bullish {
                         ev_tx.clone(),
                         order_manager.clone(),
                         client.clone(),
+                        symbol_tx.subscribe()
                     );
                     stream.connect(&private_url).await?;
                     Ok(())
@@ -295,8 +297,9 @@ impl Bullish {
 impl Connector for Bullish {
 
     fn register(&mut self, symbol: String) {
-        // Binance futures symbols must be lowercase to subscribe to the WebSocket stream.
-        let symbol = symbol.to_lowercase();
+        // Bullish symbols are upper case
+        tracing::info!(?symbol, "New symbol registration event");
+        let symbol = symbol.to_uppercase();
         let mut symbols = self.symbols.lock().unwrap();
         if !symbols.contains(&symbol) {
             symbols.insert(symbol.clone());
@@ -334,6 +337,8 @@ impl Connector for Bullish {
                 .lock()
                 .unwrap()
                 .prepare_client_order_id(symbol.clone(), order.clone());
+
+            tracing::info!(?client_order_id, "Command Received to submit new order");
 
             match client_order_id {
                 Some(client_order_id) => {

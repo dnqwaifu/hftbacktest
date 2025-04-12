@@ -84,7 +84,7 @@ impl TradeDataStream {
                 "topic":"heartbeat"
             }},
             "id":"{id}"
-        }}"#);
+        }}"#).into();
         write.send(Message::Text(sub)).await?;
 
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
@@ -99,7 +99,7 @@ impl TradeDataStream {
                         "method": "keepalivePing",
                         "params": {{}},
                         "id": "{id}"
-                    }}"#);
+                    }}"#).into();
                     write.send(Message::Text(keep_alive)).await?;
                 },
                 Some((symbol, data)) = self.rest_rx.recv() => {
@@ -119,7 +119,7 @@ impl TradeDataStream {
                                 "topic": "anonymousTrades"
                             }},
                             "id": "{id}"
-                        }}"#);
+                        }}"#).into();
                         write.send(Message::Text(sub)).await?;
                     }
                     Err(RecvError::Closed) => {

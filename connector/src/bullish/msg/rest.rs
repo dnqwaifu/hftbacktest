@@ -275,9 +275,11 @@ pub struct PerpetualPosition {
     pub reported_funding_pnl: String,
     pub realized_pnl: String,
     pub created_at_datetime: String,
-    pub created_at_timestamp: String,
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub created_at_timestamp: i64,
     pub updated_at_datetime: String,
-    pub updated_at_timestamp: String,
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub updated_at_timestamp: i64,
 }
 
 pub type AssetAccountResponse = Vec<AssetAccount>;

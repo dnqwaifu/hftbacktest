@@ -201,7 +201,7 @@ impl MarketDataStream {
                 "topic":"heartbeat"
             }},
             "id":"{id}"
-        }}"#))).await?;
+        }}"#).into())).await?;
 
         loop {
             select! {
@@ -213,7 +213,7 @@ impl MarketDataStream {
                         "method": "keepalivePing",
                         "params": {{}},
                         "id": "{id}"
-                    }}"#);
+                    }}"#).into();
                     write.send(Message::Text(keep_alive)).await?;
                 },
                 Some((symbol, data)) = self.rest_rx.recv() => {
@@ -233,7 +233,7 @@ impl MarketDataStream {
                                 "topic": "l2Orderbook"
                             }},
                             "id": "{id}"
-                        }}"#);
+                        }}"#).into();
                         write.send(Message::Text(sub)).await?;
                         let id = Utc::now().timestamp_micros().to_string();
                         let sub = format!(r#"{{
@@ -245,7 +245,7 @@ impl MarketDataStream {
                                 "topic": "l1Orderbook"
                             }},
                             "id": "{id}"
-                        }}"#);
+                        }}"#).into();
                         write.send(Message::Text(sub)).await?;
                     }
                     Err(RecvError::Closed) => {

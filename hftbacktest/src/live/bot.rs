@@ -1,10 +1,6 @@
 use std::{
-<<<<<<< HEAD
-    borrow::Borrow, collections::{hash_map::Entry, HashMap}, time::{Duration, Instant}
-=======
     collections::{HashMap, hash_map::Entry},
     time::{Duration, Instant},
->>>>>>> upstream/master
 };
 
 use chrono::Utc;

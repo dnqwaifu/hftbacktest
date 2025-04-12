@@ -1,3 +1,4 @@
+use core::slice;
 use std::time::SystemTime;
 
 use serde::Deserialize;
@@ -108,7 +109,7 @@ impl BullishClient {
         signature: &str,
         timestamp: &str,
     ) -> Result<T, reqwest::Error> {
-        tracing::info!(?body, "CommandV3");
+        tracing::debug!(?body, "CommandV3");
         let resp = self
             .client
             .post(&format!("{}{}", self.url, path))
@@ -136,6 +137,25 @@ impl BullishClient {
             .client
             .get(&format!("{}{}", self.url, path))
             .header("Authorization", format!("Bearer {jwt}"))
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    // get but with a bearer token authorization header
+    async fn get_jwted_query<T: for<'a> Deserialize<'a>>(
+        &self,
+        path: &str,
+        jwt: &str,
+        query: &[(String, String)],
+    ) -> Result<T, reqwest::Error> {
+        let resp = self
+            .client
+            .get(&format!("{}{}", self.url, path))
+            .header("Authorization", format!("Bearer {jwt}"))
+            .query(query)
             .send()
             .await?
             .json()
@@ -370,9 +390,11 @@ impl BullishClient {
 
     pub async fn get_position_information(
         &self,
+        symbol: &str
     ) -> Result<PerpetualPositionResponse, ErrorResponse> {
+        let query: &[(String, String)] = &[("symbol".to_string(), symbol.to_string()), ("trading_account_id".to_string(), self.trading_account_id.to_string())];
         let resp = self
-            .get_jwted(&format!("/trading-api/v1/accounts/assets"), &self.jwt)
+            .get_jwted_query(&format!("/trading-api/v1/derivatives-positions"), &self.jwt, query)
             .await;
         let resp = resp.unwrap();
         match resp {

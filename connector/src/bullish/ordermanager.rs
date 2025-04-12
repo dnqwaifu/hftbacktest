@@ -301,7 +301,7 @@ impl OrderManager {
         */
     }
 
-    pub fn cancel_all_from_rest(&mut self, symbol: &str) -> Vec<Order> {
+    pub fn cancel_all(&mut self, symbol: &str) -> Vec<Order> {
         let mut removed_orders = Vec::new();
         let mut removed_order_ids = Vec::new();
         for (client_order_id, order_ext) in &mut self.orders {

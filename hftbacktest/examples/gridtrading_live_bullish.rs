@@ -1,5 +1,4 @@
 use algo::gridtrading;
-use chrono::Utc;
 use hftbacktest::{
     live::{
         ipc::iceoryx::IceoryxUnifiedChannel,
@@ -8,11 +7,13 @@ use hftbacktest::{
         LiveBotBuilder,
         LoggingRecorder,
     },
-    prelude::{Bot, ErrorKind, HashMapMarketDepth}, types::Status,
+    prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
 use tracing::error;
 
 mod algo;
+
+const ORDER_PREFIX: &str = "131x";
 
 fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
     let mut hbt = LiveBotBuilder::new()
@@ -21,7 +22,7 @@ fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
             "BTCUSDC",
             0.1,
             0.001,
-            HashMapMarketDepth::new(0.1, 0.001),
+            HashMapMarketDepth::new(0.000001, 0.0001),
             0,
         ))
         .error_handler(|error| {
@@ -42,19 +43,6 @@ fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
             }
             Ok(())
         })
-        .order_recv_hook(|req, resp| {
-            if (req.req == Status::New || req.req == Status::Canceled) && (resp.req == Status::None)
-            {
-                tracing::info!(
-                    req_timestamp = req.local_timestamp,
-                    exch_timestamp = resp.exch_timestamp,
-                    resp_timestamp = Utc::now().timestamp_nanos_opt().unwrap(),
-                    req = ?req.req,
-                    "Order response is received."
-                );
-            }
-            Ok(())
-        })
         .build()
         .unwrap();
 
@@ -68,10 +56,10 @@ fn main() {
 
     let relative_half_spread = 0.0001;
     let relative_grid_interval = 0.0001;
-    let grid_num = 2;
-    let min_grid_step = 0.1; // tick size
+    let grid_num = 10;
+    let min_grid_step = 0.0001; // tick size
     let skew = relative_half_spread / grid_num as f64;
-    let order_qty = 0.001;
+    let order_qty = 0.4;
     let max_position = grid_num as f64 * order_qty;
 
     let mut recorder = LoggingRecorder::new();
